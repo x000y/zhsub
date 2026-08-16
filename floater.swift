@@ -67,7 +67,7 @@ final class SettingsPanel: NSWindow {
 
     init(owner: Floater) {
         self.owner = owner
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 480, height: 520),
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 480, height: 534),
                    styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         title = "AI 字幕 · 设置"
         level = .floating
@@ -82,7 +82,7 @@ final class SettingsPanel: NSWindow {
 
     // ---------- UI 构建 (紧凑单屏, 无滚动) ----------
     func buildUI() {
-        let box = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 520))
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 534))
         contentBox = box
         let doc = NSView(frame: box.bounds)
         doc.wantsLayer = true
@@ -112,56 +112,65 @@ final class SettingsPanel: NSWindow {
         doc.addSubview(delayField)
         y -= 22
 
-        // 翻译缓存上限
+        // === 字幕显示 ===
+        title("字幕显示")
+        delayField = NSTextField(labelWithString: "滚轮=缩放字号  Option+滚轮=缓冲延迟 (当前 \(owner?.delayMs ?? 0)ms)")
+        delayField.font = .systemFont(ofSize: 11)
+        delayField.frame = NSRect(x: 14, y: y - 15, width: 440, height: 16)
+        doc.addSubview(delayField)
+        y -= 26
+
+        // 翻译缓存上限 + 字幕更新间隔 (同一行)
         let cacheLb = NSTextField(labelWithString: "翻译缓存上限:")
         cacheLb.font = .systemFont(ofSize: 11)
-        cacheLb.frame = NSRect(x: 14, y: y - 16, width: 110, height: 16)
+        cacheLb.frame = NSRect(x: 14, y: y - 16, width: 104, height: 16)
         doc.addSubview(cacheLb)
-        cacheField = NSTextField(frame: NSRect(x: 124, y: y - 22, width: 60, height: 22))
+        cacheField = NSTextField(frame: NSRect(x: 118, y: y - 22, width: 60, height: 22))
         cacheField.font = .systemFont(ofSize: 11)
         cacheField.placeholderString = "512"
         doc.addSubview(cacheField)
         let cacheUnit = NSTextField(labelWithString: "条")
         cacheUnit.font = .systemFont(ofSize: 10)
         cacheUnit.textColor = .secondaryLabelColor
-        cacheUnit.frame = NSRect(x: 186, y: y - 15, width: 18, height: 14)
+        cacheUnit.frame = NSRect(x: 180, y: y - 15, width: 16, height: 14)
         doc.addSubview(cacheUnit)
-        // 字幕更新间隔
         let gapLb = NSTextField(labelWithString: "字幕更新间隔:")
         gapLb.font = .systemFont(ofSize: 11)
-        gapLb.frame = NSRect(x: 210, y: y - 16, width: 100, height: 16)
+        gapLb.frame = NSRect(x: 208, y: y - 16, width: 96, height: 16)
         doc.addSubview(gapLb)
-        gapField = NSTextField(frame: NSRect(x: 310, y: y - 22, width: 56, height: 22))
+        gapField = NSTextField(frame: NSRect(x: 304, y: y - 22, width: 56, height: 22))
         gapField.font = .systemFont(ofSize: 11)
         gapField.placeholderString = "1200"
         doc.addSubview(gapField)
-        let gapUnit = NSTextField(labelWithString: "毫秒(400-5000)")
-        gapUnit.font = .systemFont(ofSize: 9.5)
-        gapUnit.textColor = .tertiaryLabelColor
-        gapUnit.frame = NSRect(x: 368, y: y - 15, width: 100, height: 14)
+        let gapUnit = NSTextField(labelWithString: "毫秒")
+        gapUnit.font = .systemFont(ofSize: 10)
+        gapUnit.textColor = .secondaryLabelColor
+        gapUnit.frame = NSRect(x: 362, y: y - 15, width: 34, height: 14)
         doc.addSubview(gapUnit)
-        let cacheHint = NSTextField(labelWithString: "越小字幕越跟嘴(跳动多), 越大越平稳; 保存后重启引擎生效")
+        y -= 30
+
+        let cacheHint = NSTextField(labelWithString: "字幕间隔越小越跟嘴(跳动多), 越大越平稳; 保存后重启引擎生效")
         cacheHint.font = .systemFont(ofSize: 9.5)
         cacheHint.textColor = .tertiaryLabelColor
-        cacheHint.frame = NSRect(x: 14, y: y - 30, width: 440, height: 14)
+        cacheHint.frame = NSRect(x: 14, y: y - 13, width: 440, height: 14)
         doc.addSubview(cacheHint)
-        y -= 40
+        y -= 20
 
         // === ASR 识别模型 ===
         title("识别模型 (ASR)")
         let asrModels = ["en-0626", "multi-zh-hans", "multi-8lang", "multilingual-2025"]
         for key in asrModels {
             y = buildModelRow(doc, y: y, key: key)
-            y -= 5
+            y -= 3
         }
-        y -= 4
+        y -= 3
 
         // === 翻译模型 ===
         title("翻译模型")
         y = buildModelRow(doc, y: y, key: "Hy-MT2-1.8B-8bit")
-        y -= 5
+        y -= 3
         y = buildModelRow(doc, y: y, key: "Hy-MT2-1.8B-4bit")
-        y -= 5
+        y -= 3
 
         // === 下载设置 ===
         title("下载设置")
@@ -174,7 +183,7 @@ final class SettingsPanel: NSWindow {
         channelPopup.target = self
         channelPopup.action = #selector(onChannelChanged)
         doc.addSubview(channelPopup)
-        y -= 30
+        y -= 27
 
         let prLb = NSTextField(labelWithString: "代理:")
         prLb.font = .systemFont(ofSize: 11.5)
@@ -192,14 +201,14 @@ final class SettingsPanel: NSWindow {
         restartBtn.bezelStyle = .rounded
         restartBtn.frame = NSRect(x: 372, y: y - 24, width: 92, height: 24)
         doc.addSubview(restartBtn)
-        y -= 32
+        y -= 29
 
         statusLabel = NSTextField(labelWithString: "")
         statusLabel.font = .systemFont(ofSize: 10.5)
         statusLabel.textColor = .systemGreen
-        statusLabel.frame = NSRect(x: 14, y: y - 14, width: 452, height: 14)
+        statusLabel.frame = NSRect(x: 14, y: y - 14, width: 280, height: 14)
         doc.addSubview(statusLabel)
-        y -= 22
+        y -= 20
 
         // GitHub 链接 + 作者 (带 Octocat 小猫图标)
         let ghBtn = NSButton(title: "易", target: self, action: #selector(openGitHub))
@@ -216,6 +225,7 @@ final class SettingsPanel: NSWindow {
         ghBtn.target = self
         ghBtn.action = #selector(openGitHub)
         doc.addSubview(ghBtn)
+        y -= 19
         let ghUrl = NSTextField(labelWithString: "github.com/x000y/zhsub")
         ghUrl.font = .systemFont(ofSize: 10)
         ghUrl.textColor = .tertiaryLabelColor
@@ -230,7 +240,7 @@ final class SettingsPanel: NSWindow {
 
         box.addSubview(doc)
         contentView = box
-        setContentSize(NSSize(width: 480, height: 520))
+        setContentSize(NSSize(width: 480, height: 534))
         center()
     }
 
@@ -267,7 +277,7 @@ final class SettingsPanel: NSWindow {
         doc.addSubview(btn)
 
         rows[key] = (stLb, bar, btn)
-        return y - 40
+        return y - 36
     }
 
     // ---------- 数据刷新 ----------
