@@ -162,18 +162,17 @@ final class SettingsPanel: NSWindow {
         doc.addSubview(statusLabel)
         y -= 22
 
-        // GitHub 链接 + 作者
+        // GitHub 链接 + 作者 (带 Octocat 小猫图标)
         let ghBtn = NSButton(title: "易", target: self, action: #selector(openGitHub))
         ghBtn.bezelStyle = .inline
         ghBtn.font = .systemFont(ofSize: 11)
         ghBtn.frame = NSRect(x: 14, y: y - 20, width: 100, height: 20)
         ghBtn.toolTip = "https://github.com/x000y/zhsub"
-        if let ghImg = NSImage(systemSymbolName: "chevron.left.forwardslash.chevron.right", accessibilityDescription: "GitHub") {
-            ghImg.isTemplate = true
+        if let ghImg = NSImage(contentsOfFile: NSHomeDirectory() + "/zh-sub-engine/assets/github-mark.png") {
+            ghImg.size = NSSize(width: 16, height: 16)
             ghBtn.image = ghImg
             ghBtn.imagePosition = .imageLeading
             ghBtn.imageScaling = .scaleProportionallyDown
-            ghBtn.contentTintColor = .secondaryLabelColor
         }
         ghBtn.target = self
         ghBtn.action = #selector(openGitHub)
