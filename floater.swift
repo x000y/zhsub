@@ -13,7 +13,13 @@ func hasFlag(_ n: String) -> Bool {
 let lang = arg("--lang") ?? "zh-cn"
 
 // ---------------- 运行环境路径 ----------------
-let VERSION = "0.1.2"
+// 版本号: 打包后读 Info.plist (CFBundleShortVersionString), 开发模式回退
+let VERSION: String = {
+    if let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String, !v.isEmpty {
+        return v
+    }
+    return "0.1.2"
+}()
 let GITHUB_REPO = "x000y/zhsub"
 
 // 打包后: Resources/engine + Resources/venv + Resources/models
@@ -224,7 +230,7 @@ final class SettingsPanel: NSWindow {
         let ghBtn = NSButton(title: "易", target: self, action: #selector(openGitHub))
         ghBtn.bezelStyle = .inline
         ghBtn.font = .systemFont(ofSize: 11)
-        ghBtn.frame = NSRect(x: E, y: y - 20, width: 30, height: 20)
+        ghBtn.frame = NSRect(x: E, y: y - 20, width: 60, height: 20)
         ghBtn.toolTip = "https://github.com/x000y/zhsub"
         if let ghImg = NSImage(contentsOfFile: ASSET_DIR + "/github-mark.png") {
             ghImg.size = NSSize(width: 16, height: 16)
@@ -238,12 +244,13 @@ final class SettingsPanel: NSWindow {
         let ghUrl = NSTextField(labelWithString: "github.com/x000y/zhsub")
         ghUrl.font = .systemFont(ofSize: 11)
         ghUrl.textColor = .tertiaryLabelColor
-        ghUrl.frame = NSRect(x: E + 32, y: y - 17, width: 180, height: 14)
+        ghUrl.frame = NSRect(x: E + 62, y: y - 17, width: 180, height: 14)
         doc.addSubview(ghUrl)
+        // 版本号: 与上方「检查更新」按钮同列居中 (x = W-E-80, 宽80, 文本居中)
         let ver = NSTextField(labelWithString: "v\(VERSION)")
         ver.font = .boldSystemFont(ofSize: 11)
         ver.textColor = .secondaryLabelColor
-        ver.alignment = .right
+        ver.alignment = .center
         ver.frame = NSRect(x: W - E - 80, y: y - 17, width: 80, height: 14)
         doc.addSubview(ver)
         y -= 28
@@ -273,21 +280,30 @@ final class SettingsPanel: NSWindow {
         statusLabel.textColor = .systemOrange
         Task {
             var latest = ""
+            var http404 = false
+            var httpOK = false
             let url = URL(string: "https://api.github.com/repos/x000y/zhsub/releases/latest")!
             var req = URLRequest(url: url)
             req.timeoutInterval = 15
             req.setValue("zhsub-checker", forHTTPHeaderField: "User-Agent")
-            if let (d, _) = try? await URLSession.shared.data(for: req),
-               let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-               let tag = o["tag_name"] as? String {
-                latest = tag
+            if let (d, resp) = try? await URLSession.shared.data(for: req),
+               let http = resp as? HTTPURLResponse {
+                httpOK = true
+                http404 = (http.statusCode == 404)
+                if let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+                   let tag = o["tag_name"] as? String {
+                    latest = tag
+                }
             }
             DispatchQueue.main.async { [weak self] in
                 guard let s = self else { return }
                 let cur = "v" + VERSION
-                if latest.isEmpty {
+                if !httpOK {
                     s.statusLabel.stringValue = "无法连接 GitHub (可能需代理)"
                     s.statusLabel.textColor = .systemRed
+                } else if http404 || latest.isEmpty {
+                    s.statusLabel.stringValue = "仓库暂无版本发布 (当前 \(cur))"
+                    s.statusLabel.textColor = .systemOrange
                 } else if latest == cur {
                     s.statusLabel.stringValue = "已是最新版本 \(cur)"
                     s.statusLabel.textColor = .systemGreen
