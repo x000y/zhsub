@@ -44,6 +44,7 @@ DEFAULT_CONFIG = {
     'custom_url': '',
     'proxy': '',
     'cache_size': 512,
+    'sub_gap': 1200,
 }
 
 # ---------------- 模型清单 ----------------
@@ -404,7 +405,7 @@ def _stream_download(client, url, fpath, model, fname, pct_base=0.0, pct_span=10
         emit_ndjson({'t': 'DL', 'model': model, 'pct': -1, 'msg': f'{fname} 异常: {e}'})
         return False
 
-def cmd_set(asr, mt, channel, custom_url, proxy, cache_size):
+def cmd_set(asr, mt, channel, custom_url, proxy, cache_size, sub_gap):
     cfg = load_config()
     if asr:
         if asr not in MANIFEST['asr']:
@@ -427,8 +428,13 @@ def cmd_set(asr, mt, channel, custom_url, proxy, cache_size):
             cfg['cache_size'] = max(64, min(8192, int(cache_size)))
         except ValueError:
             print(f'✗ 缓存上限必须是数字: {cache_size}'); sys.exit(1)
+    if sub_gap is not None:
+        try:
+            cfg['sub_gap'] = max(400, min(5000, int(sub_gap)))
+        except ValueError:
+            print(f'✗ 字幕间隔必须是数字(毫秒): {sub_gap}'); sys.exit(1)
     save_config(cfg)
-    print(f'✓ 配置已保存: asr={cfg["asr"]} mt={cfg["mt"]} 渠道={cfg["channel"]} 缓存={cfg.get("cache_size")}'
+    print(f'✓ 配置已保存: asr={cfg["asr"]} mt={cfg["mt"]} 渠道={cfg["channel"]} 缓存={cfg.get("cache_size")} 字幕间隔={cfg.get("sub_gap")}ms'
           + (f' 代理={cfg["proxy"]}' if cfg.get('proxy') else ' 无代理'))
 
 def cmd_show():
@@ -450,12 +456,13 @@ if __name__ == '__main__':
     p_set.add_argument('--custom-url')
     p_set.add_argument('--proxy')
     p_set.add_argument('--cache-size')
+    p_set.add_argument('--sub-gap')
     sub.add_parser('show', help='显示当前配置')
     a = ap.parse_args()
     if a.cmd == 'status':
         if a.json: cmd_status_json()
         else: cmd_status()
     elif a.cmd == 'download': cmd_download(a.model)
-    elif a.cmd == 'set': cmd_set(a.asr, a.mt, a.channel, a.custom_url, a.proxy, a.cache_size)
+    elif a.cmd == 'set': cmd_set(a.asr, a.mt, a.channel, a.custom_url, a.proxy, a.cache_size, a.sub_gap)
     elif a.cmd == 'show': cmd_show()
     else: ap.print_help()

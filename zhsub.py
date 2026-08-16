@@ -189,12 +189,16 @@ class Translator:
                 self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': '', 'cached': False})
 
 # ---------------- ASR 流式 ----------------
-PARTIAL_TRANSLATE_GAP_MS = 1200  # partial 翻译提交最小间隔: 字幕更新节奏 ~1.2s 一次
-
 def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
     rec = make_recognizer()
     tr = Translator(emit, lang=lang)
     stream = rec.create_stream()
+    # 字幕更新间隔: 从配置读 (partial 翻译提交最小间隔, 默认 1200ms)
+    try:
+        sub_gap = int(load_config().get('sub_gap', 1200) or 1200)
+    except Exception:
+        sub_gap = 1200
+    sub_gap = max(400, min(5000, sub_gap))
     last_partial_ms = -9999
     last_partial = ''
     last_final = ''
@@ -206,10 +210,10 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
         txt = rec.get_result(stream).strip()
         if txt and txt != last_partial and (audio_ms - last_partial_ms) >= PARTIAL_MIN_INTERVAL_S * 1000:
             emit({'t': 'P', 'ms': audio_ms, 'text': txt})
-            # partial 翻译节流: 至少间隔 PARTIAL_TRANSLATE_GAP_MS 才提交一次,
-            # 避免字幕每 0.4s 跳动; 新 partial 抢占旧 partial 保证总是最新的
+            # partial 翻译节流: 至少间隔 sub_gap 才提交一次,
+            # 避免字幕频繁跳动; 新 partial 抢占旧 partial 保证总是最新的
             if (len(txt) >= 4 and not is_mostly_chinese(txt)
-                    and (audio_ms - last_translate_ms) >= PARTIAL_TRANSLATE_GAP_MS):
+                    and (audio_ms - last_translate_ms) >= sub_gap):
                 tr.submit(audio_ms, txt, final=False)
                 last_translate_ms = audio_ms
             last_partial = txt; last_partial_ms = audio_ms

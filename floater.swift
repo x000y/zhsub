@@ -60,6 +60,7 @@ final class SettingsPanel: NSWindow {
     var proxyField: NSTextField!
     var delayField: NSTextField!
     var cacheField: NSTextField!
+    var gapField: NSTextField!
     var contentBox: NSView!
     weak var owner: Floater?
     var didLoadConfig = false
@@ -116,16 +117,35 @@ final class SettingsPanel: NSWindow {
         cacheLb.font = .systemFont(ofSize: 11)
         cacheLb.frame = NSRect(x: 14, y: y - 16, width: 110, height: 16)
         doc.addSubview(cacheLb)
-        cacheField = NSTextField(frame: NSRect(x: 124, y: y - 22, width: 70, height: 22))
+        cacheField = NSTextField(frame: NSRect(x: 124, y: y - 22, width: 60, height: 22))
         cacheField.font = .systemFont(ofSize: 11)
         cacheField.placeholderString = "512"
         doc.addSubview(cacheField)
-        let cacheHint = NSTextField(labelWithString: "条(重复句子免翻译, 调大更省时占内存; 保存后重启引擎生效)")
+        let cacheUnit = NSTextField(labelWithString: "条")
+        cacheUnit.font = .systemFont(ofSize: 10)
+        cacheUnit.textColor = .secondaryLabelColor
+        cacheUnit.frame = NSRect(x: 186, y: y - 15, width: 18, height: 14)
+        doc.addSubview(cacheUnit)
+        // 字幕更新间隔
+        let gapLb = NSTextField(labelWithString: "字幕更新间隔:")
+        gapLb.font = .systemFont(ofSize: 11)
+        gapLb.frame = NSRect(x: 210, y: y - 16, width: 100, height: 16)
+        doc.addSubview(gapLb)
+        gapField = NSTextField(frame: NSRect(x: 310, y: y - 22, width: 56, height: 22))
+        gapField.font = .systemFont(ofSize: 11)
+        gapField.placeholderString = "1200"
+        doc.addSubview(gapField)
+        let gapUnit = NSTextField(labelWithString: "毫秒(400-5000)")
+        gapUnit.font = .systemFont(ofSize: 9.5)
+        gapUnit.textColor = .tertiaryLabelColor
+        gapUnit.frame = NSRect(x: 368, y: y - 15, width: 100, height: 14)
+        doc.addSubview(gapUnit)
+        let cacheHint = NSTextField(labelWithString: "越小字幕越跟嘴(跳动多), 越大越平稳; 保存后重启引擎生效")
         cacheHint.font = .systemFont(ofSize: 9.5)
         cacheHint.textColor = .tertiaryLabelColor
-        cacheHint.frame = NSRect(x: 200, y: y - 15, width: 270, height: 14)
+        cacheHint.frame = NSRect(x: 14, y: y - 30, width: 440, height: 14)
         doc.addSubview(cacheHint)
-        y -= 28
+        y -= 40
 
         // === ASR 识别模型 ===
         title("识别模型 (ASR)")
@@ -265,6 +285,7 @@ final class SettingsPanel: NSWindow {
             channelPopup.selectItem(at: idx)
             proxyField.stringValue = cfg["proxy"] as? String ?? ""
             cacheField.stringValue = "\(cfg["cache_size"] as? Int ?? 512)"
+            gapField.stringValue = "\(cfg["sub_gap"] as? Int ?? 1200)"
         }
         for m in models {
             guard let key = m["key"] as? String, let tup = rows[key] else { continue }
@@ -387,6 +408,8 @@ final class SettingsPanel: NSWindow {
         a += ["--proxy", proxyField.stringValue]
         let cs = Int(cacheField.stringValue.trimmingCharacters(in: .whitespaces)) ?? 0
         if cs > 0 { a += ["--cache-size", "\(cs)"] }
+        let gp = Int(gapField.stringValue.trimmingCharacters(in: .whitespaces)) ?? 0
+        if gp > 0 { a += ["--sub-gap", "\(gp)"] }
         _ = runOutput(a)
         statusLabel.stringValue = "✓ 设置已保存 (缓存改后需重启引擎生效)"
         statusLabel.textColor = .systemGreen
