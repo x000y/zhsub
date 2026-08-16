@@ -1,3 +1,16 @@
-.venv/
+# 大文件: 模型与 Python 环境
 models/
+.venv/
 __pycache__/
+*.pyc
+
+# 二进制与敏感信息
+floater
+zhsub-app
+wm-secrets.json
+
+# macOS
+.DS_Store
+
+# 日志
+*.log

@@ -13,11 +13,63 @@ import argparse, json, os, re, sys, threading, time
 from collections import OrderedDict
 import numpy as np
 
+LANGS = {
+    'zh-cn': 'Simplified Chinese', 'zh-tw': 'Traditional Chinese',
+    'ja-jp': 'Japanese', 'ko-kr': 'Korean',
+}
+
 BASE = os.path.expanduser('~/zh-sub-engine')
-MDIR = f'{BASE}/models/streaming-zipformer-en-0626'
 SR = 16000
 CHUNK = SR // 10  # 100ms
 PARTIAL_MIN_INTERVAL_S = 0.35
+
+# ---------------- 配置 (~/Library/Application Support/zhsub/config.json) ----------------
+APP_SUPPORT = os.path.expanduser('~/Library/Application Support/zhsub')
+CONFIG_PATH = os.path.join(APP_SUPPORT, 'config.json')
+DEFAULT_CONFIG = {'asr': 'en-0626', 'mt': 'Hy-MT2-1.8B-8bit', 'channel': 'hf-mirror', 'custom_url': '', 'proxy': ''}
+
+def load_config():
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH) as f: cfg = json.load(f)
+            for k, v in DEFAULT_CONFIG.items(): cfg.setdefault(k, v)
+            return cfg
+        except Exception:
+            pass
+    return dict(DEFAULT_CONFIG)
+
+def resolve_asr_dir(cfg):
+    """根据配置返回 ASR 模型目录。en-0626 用内置路径, 其余用下载目录。"""
+    key = cfg.get('asr', 'en-0626')
+    if key == 'en-0626':
+        return f'{BASE}/models/streaming-zipformer-en-0626'
+    return os.path.join(APP_SUPPORT, 'models', 'asr', key)
+
+def make_recognizer():
+    import sherpa_onnx
+    import glob
+    cfg = load_config()
+    mdir = resolve_asr_dir(cfg)
+    tokens = f'{mdir}/tokens.txt'
+    bpe = f'{mdir}/bpe.model'
+    # 自动探测 onnx 文件: 优先 int8 量化版 encoder/joiner, 其余任意
+    def pick(prefix, prefer_int8=True):
+        cands = glob.glob(f'{mdir}/{prefix}*.onnx')
+        if prefer_int8:
+            int8 = [c for c in cands if '.int8.' in c]
+            if int8: return int8[0]
+        return cands[0] if cands else None
+    enc = pick('encoder-epoch')
+    dec = pick('decoder-epoch', prefer_int8=False)
+    joi = pick('joiner-epoch')
+    if not (enc and dec and joi):
+        raise SystemExit(f'✗ ASR 模型文件不完整: {mdir} (缺 encoder/decoder/joiner)')
+    kwargs = dict(tokens=tokens, encoder=enc, decoder=dec, joiner=joi,
+                  num_threads=2, sample_rate=SR, feature_dim=80,
+                  enable_endpoint_detection=True)
+    if os.path.isfile(bpe):
+        kwargs['bpe_vocab'] = bpe
+    return sherpa_onnx.OnlineRecognizer.from_transducer(**kwargs)
 
 # ---------------- LRU 翻译缓存 ----------------
 class ZhCache:
@@ -76,7 +128,13 @@ class Translator:
         from mlx_lm.sample_utils import make_logits_processors, make_sampler
         from transformers.utils import logging as hf_logging
         hf_logging.set_verbosity_error()
-        model = 'mlx-community/Hy-MT2-1.8B-8bit'
+        # 翻译模型优先用本地下载目录 (多语言/按需下载模型), 否则用 HF repo id
+        cfg = load_config()
+        mt_dir = os.path.join(APP_SUPPORT, 'models', 'mt', cfg.get('mt', 'Hy-MT2-1.8B-8bit'))
+        if os.path.isdir(mt_dir) and os.listdir(mt_dir):
+            model = mt_dir
+        else:
+            model = 'mlx-community/Hy-MT2-1.8B-8bit'
         self.model, self.tokenizer = load(model)
         sampler = make_sampler(temp=0.7, top_p=0.6, top_k=20)
         procs = make_logits_processors(repetition_penalty=1.05)
@@ -108,19 +166,9 @@ class Translator:
                 self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': '', 'cached': False})
 
 # ---------------- ASR 流式 ----------------
-def make_recognizer():
-    import sherpa_onnx
-    return sherpa_onnx.OnlineRecognizer.from_transducer(
-        tokens=f'{MDIR}/tokens.txt',
-        encoder=f'{MDIR}/encoder-epoch-99-avg-1-chunk-16-left-64.onnx',
-        decoder=f'{MDIR}/decoder-epoch-99-avg-1-chunk-16-left-64.onnx',
-        joiner=f'{MDIR}/joiner-epoch-99-avg-1-chunk-16-left-64.onnx',
-        num_threads=2, sample_rate=SR, feature_dim=80,
-        enable_endpoint_detection=True)
-
-def stream_audio(chunks_iter, emit):
+def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
     rec = make_recognizer()
-    tr = Translator(emit)
+    tr = Translator(emit, lang=lang)
     stream = rec.create_stream()
     last_partial_ms = -9999
     last_partial = ''
@@ -144,6 +192,11 @@ def stream_audio(chunks_iter, emit):
                 if tail and len(tail) >= 4:
                     tr.submit(audio_ms, tail)
                 last_final = final
+                # 句末重置流: 英文不累积, 每句独立显示
+                rec.reset(stream)
+                last_final = ''
+                last_partial = ''
+                last_partial_ms = -9999
         audio_ms += 100
     final = rec.get_result(stream).strip()
     if final and final != last_final:
@@ -168,6 +221,9 @@ def live_chunks(pid):
     cmd = [audiotee, '--sample-rate', str(SR)]
     if pid:
         cmd += ['--include-processes', str(pid)]
+        print(f'[zhsub] 按进程捕获 pid={pid}', file=sys.stderr, flush=True)
+    else:
+        print('[zhsub] 捕获全系统音频', file=sys.stderr, flush=True)
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     while True:
         raw = proc.stdout.read(CHUNK * 2)
@@ -182,10 +238,12 @@ if __name__ == '__main__':
     ap.add_argument('--file')
     ap.add_argument('--live', action='store_true')
     ap.add_argument('--pid', type=int)
+    ap.add_argument('--lang', default='zh-cn', choices=list(LANGS.keys()))
     a = ap.parse_args()
+    lang_name = LANGS.get(a.lang, LANGS['zh-cn'])
     if a.file:
-        stream_audio(file_chunks(a.file), emit)
+        stream_audio(file_chunks(a.file), emit, lang_name)
     elif a.live and a.pid is not None:
-        stream_audio(live_chunks(a.pid), emit)
+        stream_audio(live_chunks(a.pid), emit, lang_name)
     else:
         ap.print_help()
