@@ -182,6 +182,12 @@ final class SettingsPanel: NSWindow {
         ghUrl.textColor = .tertiaryLabelColor
         ghUrl.frame = NSRect(x: 120, y: y - 17, width: 200, height: 14)
         doc.addSubview(ghUrl)
+        let credit = NSTextField(labelWithString: "DeepSeek Harness v4 Flash 作品")
+        credit.font = .systemFont(ofSize: 10)
+        credit.textColor = .tertiaryLabelColor
+        credit.alignment = .right
+        credit.frame = NSRect(x: 300, y: y - 17, width: 166, height: 14)
+        doc.addSubview(credit)
 
         box.addSubview(doc)
         contentView = box
