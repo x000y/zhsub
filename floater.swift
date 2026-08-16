@@ -92,69 +92,74 @@ final class SettingsPanel: NSWindow {
         }
     }
 
-    // ---------- UI 构建 (统一间距体系: 边缘14, 区块间隙10, 行高统一) ----------
+    // ---------- UI 构建 (macOS 开源风格: 边缘20/控件高24/行高32/字体三级) ----------
     func buildUI() {
         let W: CGFloat = 480
-        let H: CGFloat = 564
-        let X: CGFloat = 14          // 统一左右边缘
+        let H: CGFloat = 570
+        let E: CGFloat = 20          // 四边统一边缘
+        let C: CGFloat = 24          // 控件统一高度
         let box = NSView(frame: NSRect(x: 0, y: 0, width: W, height: H))
         contentBox = box
         let doc = NSView(frame: box.bounds)
         doc.wantsLayer = true
-        var y: CGFloat = H - 14      // 顶部边缘 14
+        var y: CGFloat = H - E       // 顶部边缘 20
 
-        // 区块标题: 标题行 + 标题后间隙
+        // 区块标题: 13 bold, 标题后留 8 间隙
         func section(_ s: String) {
             let lb = NSTextField(labelWithString: s)
             lb.font = .boldSystemFont(ofSize: 13)
-            lb.frame = NSRect(x: X, y: y - 17, width: W - X * 2, height: 18)
+            lb.frame = NSRect(x: E, y: y - 18, width: W - E * 2, height: 18)
             doc.addSubview(lb)
-            y -= 30                  // 标题18 + 间隙12
+            y -= 30
         }
-        // 普通提示行
-        func line(_ s: String, size: CGFloat = 11, color: NSColor = .labelColor) {
+        // 说明文字: 11 secondary, 统一行高 22
+        func hint(_ s: String) {
             let lb = NSTextField(labelWithString: s)
-            lb.font = .systemFont(ofSize: size)
-            lb.textColor = color
-            lb.frame = NSRect(x: X, y: y - 16, width: W - X * 2, height: 16)
+            lb.font = .systemFont(ofSize: 11)
+            lb.textColor = .secondaryLabelColor
+            lb.frame = NSRect(x: E, y: y - 14, width: W - E * 2, height: 14)
             doc.addSubview(lb)
             y -= 24
         }
 
         // === 字幕显示 ===
         section("字幕显示")
-        line("滚轮=缩放字号  Option+滚轮=缓冲延迟 (当前 \(owner?.delayMs ?? 0)ms)", size: 11)
+        hint("滚轮=缩放字号  Option+滚轮=缓冲延迟 (当前 \(owner?.delayMs ?? 0)ms)")
 
-        // 翻译缓存上限 + 字幕更新间隔 (同一行, 左对齐)
-        let cacheLb = NSTextField(labelWithString: "翻译缓存上限:")
-        cacheLb.font = .systemFont(ofSize: 11)
-        cacheLb.frame = NSRect(x: X, y: y - 16, width: 100, height: 16)
-        doc.addSubview(cacheLb)
-        cacheField = NSTextField(frame: NSRect(x: X + 102, y: y - 22, width: 56, height: 22))
-        cacheField.font = .systemFont(ofSize: 11)
-        cacheField.placeholderString = "512"
-        doc.addSubview(cacheField)
-        let cacheUnit = NSTextField(labelWithString: "条")
-        cacheUnit.font = .systemFont(ofSize: 10)
-        cacheUnit.textColor = .secondaryLabelColor
-        cacheUnit.frame = NSRect(x: X + 162, y: y - 15, width: 16, height: 14)
-        doc.addSubview(cacheUnit)
-        let gapLb = NSTextField(labelWithString: "字幕更新间隔:")
-        gapLb.font = .systemFont(ofSize: 11)
-        gapLb.frame = NSRect(x: X + 192, y: y - 16, width: 96, height: 16)
-        doc.addSubview(gapLb)
-        gapField = NSTextField(frame: NSRect(x: X + 288, y: y - 22, width: 56, height: 22))
-        gapField.font = .systemFont(ofSize: 11)
-        gapField.placeholderString = "1200"
-        doc.addSubview(gapField)
-        let gapUnit = NSTextField(labelWithString: "毫秒")
-        gapUnit.font = .systemFont(ofSize: 10)
-        gapUnit.textColor = .secondaryLabelColor
-        gapUnit.frame = NSRect(x: X + 346, y: y - 15, width: 34, height: 14)
-        doc.addSubview(gapUnit)
-        y -= 30
+        // 表单行: 标签-控件网格 (标签96 + 控件 + 单位, 两组并排)
+        let fLb = NSFont.systemFont(ofSize: 13)
+        let fIn = NSFont.systemFont(ofSize: 13)
+        func formLabel(_ s: String, _ x: CGFloat) -> NSTextField {
+            let lb = NSTextField(labelWithString: s)
+            lb.font = fLb
+            lb.frame = NSRect(x: x, y: y - 17, width: 96, height: 17)
+            doc.addSubview(lb)
+            return lb
+        }
+        func formField(_ x: CGFloat, _ ph: String) -> NSTextField {
+            let f = NSTextField(frame: NSRect(x: x, y: y - 24, width: 64, height: C))
+            f.font = fIn
+            f.placeholderString = ph
+            doc.addSubview(f)
+            return f
+        }
+        _ = formLabel("翻译缓存上限:", E)
+        cacheField = formField(E + 100, "512")
+        let cu = NSTextField(labelWithString: "条")
+        cu.font = .systemFont(ofSize: 11)
+        cu.textColor = .secondaryLabelColor
+        cu.frame = NSRect(x: E + 168, y: y - 15, width: 16, height: 14)
+        doc.addSubview(cu)
+        _ = formLabel("字幕更新间隔:", E + 200)
+        gapField = formField(E + 300, "1200")
+        let gu = NSTextField(labelWithString: "毫秒")
+        gu.font = .systemFont(ofSize: 11)
+        gu.textColor = .secondaryLabelColor
+        gu.frame = NSRect(x: E + 368, y: y - 15, width: 34, height: 14)
+        doc.addSubview(gu)
+        y -= 32
 
-        line("字幕间隔越小越跟嘴(跳动多), 越大越平稳; 保存后重启引擎生效", size: 9.5, color: .tertiaryLabelColor)
+        hint("字幕间隔越小越跟嘴(跳动多), 越大越平稳; 保存后重启引擎生效")
 
         // === ASR 识别模型 ===
         section("识别模型 (ASR)")
@@ -170,53 +175,56 @@ final class SettingsPanel: NSWindow {
 
         // === 下载设置 ===
         section("下载设置")
+        // 渠道行
         let chLb = NSTextField(labelWithString: "渠道:")
-        chLb.font = .systemFont(ofSize: 11.5)
-        chLb.frame = NSRect(x: X, y: y - 16, width: 56, height: 16)
+        chLb.font = .systemFont(ofSize: 13)
+        chLb.frame = NSRect(x: E, y: y - 17, width: 40, height: 17)
         doc.addSubview(chLb)
-        channelPopup = NSPopUpButton(frame: NSRect(x: X + 58, y: y - 22, width: 220, height: 24))
+        channelPopup = NSPopUpButton(frame: NSRect(x: E + 44, y: y - 24, width: 220, height: C))
         channelPopup.addItems(withTitles: ["hf-mirror (国内镜像)", "hf-official (官方,需代理)", "modelscope (阿里,免代理)", "custom (自定义)"])
         channelPopup.target = self
         channelPopup.action = #selector(onChannelChanged)
         doc.addSubview(channelPopup)
-        y -= 30
+        y -= 32
 
+        // 代理行
         let prLb = NSTextField(labelWithString: "代理:")
-        prLb.font = .systemFont(ofSize: 11.5)
-        prLb.frame = NSRect(x: X, y: y - 16, width: 56, height: 16)
+        prLb.font = .systemFont(ofSize: 13)
+        prLb.frame = NSRect(x: E, y: y - 17, width: 40, height: 17)
         doc.addSubview(prLb)
-        proxyField = NSTextField(frame: NSRect(x: X + 58, y: y - 22, width: 220, height: 22))
+        proxyField = NSTextField(frame: NSRect(x: E + 44, y: y - 24, width: 220, height: C))
         proxyField.placeholderString = "留空=直连, 如 http://127.0.0.1:1088"
-        proxyField.font = .systemFont(ofSize: 11)
+        proxyField.font = .systemFont(ofSize: 13)
         doc.addSubview(proxyField)
+        // 按钮统一右对齐: 保存 + 重启引擎
         let saveBtn = NSButton(title: "保存", target: self, action: #selector(onSaveSettings))
         saveBtn.bezelStyle = .rounded
-        saveBtn.frame = NSRect(x: W - 186, y: y - 24, width: 60, height: 24)
+        saveBtn.frame = NSRect(x: W - 178, y: y - 24, width: 64, height: C)
         doc.addSubview(saveBtn)
         let restartBtn = NSButton(title: "重启引擎", target: self, action: #selector(onRestart))
         restartBtn.bezelStyle = .rounded
-        restartBtn.frame = NSRect(x: W - 114, y: y - 24, width: 100, height: 24)
+        restartBtn.frame = NSRect(x: W - 106, y: y - 24, width: 86, height: C)
         doc.addSubview(restartBtn)
         y -= 32
 
         // 状态 + 检查更新 (同一行)
         statusLabel = NSTextField(labelWithString: "")
-        statusLabel.font = .systemFont(ofSize: 10.5)
+        statusLabel.font = .systemFont(ofSize: 11)
         statusLabel.textColor = .systemGreen
-        statusLabel.frame = NSRect(x: X, y: y - 14, width: 230, height: 14)
+        statusLabel.frame = NSRect(x: E, y: y - 14, width: 250, height: 14)
         doc.addSubview(statusLabel)
         let updBtn = NSButton(title: "检查更新", target: self, action: #selector(checkUpdate))
         updBtn.bezelStyle = .inline
-        updBtn.font = .systemFont(ofSize: 10)
-        updBtn.frame = NSRect(x: W - 84, y: y - 20, width: 70, height: 20)
+        updBtn.font = .systemFont(ofSize: 11)
+        updBtn.frame = NSRect(x: W - E - 80, y: y - 20, width: 80, height: 20)
         doc.addSubview(updBtn)
-        y -= 28
+        y -= 30
 
         // GitHub 链接 + 版本号 (同一行: 左=[🐱易+地址], 右=v版本号)
         let ghBtn = NSButton(title: "易", target: self, action: #selector(openGitHub))
         ghBtn.bezelStyle = .inline
         ghBtn.font = .systemFont(ofSize: 11)
-        ghBtn.frame = NSRect(x: X, y: y - 20, width: 30, height: 20)
+        ghBtn.frame = NSRect(x: E, y: y - 20, width: 30, height: 20)
         ghBtn.toolTip = "https://github.com/x000y/zhsub"
         if let ghImg = NSImage(contentsOfFile: ASSET_DIR + "/github-mark.png") {
             ghImg.size = NSSize(width: 16, height: 16)
@@ -228,24 +236,24 @@ final class SettingsPanel: NSWindow {
         ghBtn.action = #selector(openGitHub)
         doc.addSubview(ghBtn)
         let ghUrl = NSTextField(labelWithString: "github.com/x000y/zhsub")
-        ghUrl.font = .systemFont(ofSize: 10)
+        ghUrl.font = .systemFont(ofSize: 11)
         ghUrl.textColor = .tertiaryLabelColor
-        ghUrl.frame = NSRect(x: X + 32, y: y - 17, width: 180, height: 14)
+        ghUrl.frame = NSRect(x: E + 32, y: y - 17, width: 180, height: 14)
         doc.addSubview(ghUrl)
         let ver = NSTextField(labelWithString: "v\(VERSION)")
         ver.font = .boldSystemFont(ofSize: 11)
         ver.textColor = .secondaryLabelColor
         ver.alignment = .right
-        ver.frame = NSRect(x: W - 84, y: y - 17, width: 70, height: 14)
+        ver.frame = NSRect(x: W - E - 80, y: y - 17, width: 80, height: 14)
         doc.addSubview(ver)
-        y -= 26
+        y -= 28
 
-        // DeepSeek Harness 作品 (居中, 独立一行, 底部边缘 14)
+        // DeepSeek Harness 作品 (居中, 独立一行, 底部边缘 20)
         let credit = NSTextField(labelWithString: "DeepSeek Harness v4 Flash 作品")
-        credit.font = .systemFont(ofSize: 10)
+        credit.font = .systemFont(ofSize: 11)
         credit.textColor = .tertiaryLabelColor
         credit.alignment = .center
-        credit.frame = NSRect(x: (W - 200) / 2, y: y - 16, width: 200, height: 14)
+        credit.frame = NSRect(x: (W - 220) / 2, y: y - 16, width: 220, height: 14)
         doc.addSubview(credit)
 
         box.addSubview(doc)
@@ -294,20 +302,21 @@ final class SettingsPanel: NSWindow {
         }
     }
 
-    // 一行模型: 名字 + 状态 + 进度条 + 按钮(下载/使用) — 统一行高 34
+    // 一行模型: 名字 + 状态 + 进度条 + 按钮 — 行高 32, 控件高 24, 边缘 20
     func buildModelRow(_ doc: NSView, y: CGFloat, key: String) -> CGFloat {
+        let E: CGFloat = 20
         let nameLb = NSTextField(labelWithString: key)
-        nameLb.font = .systemFont(ofSize: 11.5, weight: .medium)
-        nameLb.frame = NSRect(x: 14, y: y - 17, width: 200, height: 17)
+        nameLb.font = .systemFont(ofSize: 13)
+        nameLb.frame = NSRect(x: E, y: y - 18, width: 190, height: 18)
         doc.addSubview(nameLb)
 
         let stLb = NSTextField(labelWithString: "…")
-        stLb.font = .systemFont(ofSize: 10.5)
+        stLb.font = .systemFont(ofSize: 11)
         stLb.textColor = .secondaryLabelColor
-        stLb.frame = NSRect(x: 218, y: y - 17, width: 100, height: 17)
+        stLb.frame = NSRect(x: E + 196, y: y - 17, width: 100, height: 17)
         doc.addSubview(stLb)
 
-        let bar = NSProgressIndicator(frame: NSRect(x: 14, y: y - 33, width: 230, height: 8))
+        let bar = NSProgressIndicator(frame: NSRect(x: E, y: y - 32, width: 230, height: 8))
         bar.isIndeterminate = false
         bar.minValue = 0; bar.maxValue = 100; bar.doubleValue = 0
         bar.isHidden = true
@@ -317,11 +326,11 @@ final class SettingsPanel: NSWindow {
         btn.bezelStyle = .rounded
         btn.tag = 0
         btn.font = .systemFont(ofSize: 11)
-        btn.frame = NSRect(x: 320, y: y - 23, width: 146, height: 23)
+        btn.frame = NSRect(x: 480 - E - 134, y: y - 24, width: 134, height: 24)
         doc.addSubview(btn)
 
         rows[key] = (stLb, bar, btn)
-        return y - 34
+        return y - 32
     }
 
     // ---------- 数据刷新 ----------
