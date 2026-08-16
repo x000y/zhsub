@@ -92,6 +92,17 @@ class ZhCache:
         self.d[n] = zh; self.d.move_to_end(n)
         while len(self.d) > self.max: self.d.popitem(last=False)
 
+# ---------------- 语言检测: 中文直接显示, 跳过翻译 ----------------
+def is_mostly_chinese(text, threshold=0.4):
+    """CJK 字符占比 >= 阈值视为中文, 直接显示原文不用翻译。
+    日文汉字混排时用假名排除: 含平假名/片假名 → 日文, 不算中文。"""
+    if not text: return False
+    cjk = sum(1 for ch in text if '\u4e00' <= ch <= '\u9fff' or '\u3400' <= ch <= '\u4dbf')
+    kana = sum(1 for ch in text if '\u3040' <= ch <= '\u309f' or '\u30a0' <= ch <= '\u30ff')
+    if kana > 0:
+        return False  # 有假名 = 日文
+    return cjk / max(1, len(text)) >= threshold
+
 # ---------------- 翻译线程 (Hy-MT2, 参考 livecaption) ----------------
 _BOILERPLATE_RE = re.compile(
     r'^(?:翻译|译文|以下是翻译|The translation|Translation|Here is the translation|'
@@ -118,7 +129,9 @@ class Translator:
         self.q = []  # (ms, text)
         self.lock = threading.Lock()
         self.model = self.tokenizer = None
-        self.cache = ZhCache()
+        cfg = load_config()
+        cache_size = int(cfg.get('cache_size', 512) or 512)
+        self.cache = ZhCache(maxsize=cache_size)
         self.stop = threading.Event()
         threading.Thread(target=self._run, daemon=True).start()
     def submit(self, ms, text):
@@ -190,7 +203,11 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
                 if last_final and final.startswith(last_final):
                     tail = final[len(last_final):].strip()
                 if tail and len(tail) >= 4:
-                    tr.submit(audio_ms, tail)
+                    if is_mostly_chinese(tail):
+                        # 识别结果是中文: 直接显示原文, 跳过翻译(零延迟)
+                        emit({'t': 'Z', 'ms': audio_ms, 'text': tail, 'zh': tail, 'cached': True, 'direct': True})
+                    else:
+                        tr.submit(audio_ms, tail)
                 last_final = final
                 # 句末重置流: 英文不累积, 每句独立显示
                 rec.reset(stream)
@@ -201,7 +218,10 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
     final = rec.get_result(stream).strip()
     if final and final != last_final:
         emit({'t': 'F', 'ms': audio_ms, 'text': final})
-        tr.submit(audio_ms, final)
+        if is_mostly_chinese(final):
+            emit({'t': 'Z', 'ms': audio_ms, 'text': final, 'zh': final, 'cached': True, 'direct': True})
+        else:
+            tr.submit(audio_ms, final)
     time.sleep(4)  # 等翻译线程排空
 
 def emit(x):

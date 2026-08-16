@@ -59,6 +59,7 @@ final class SettingsPanel: NSWindow {
     var channelPopup: NSPopUpButton!
     var proxyField: NSTextField!
     var delayField: NSTextField!
+    var cacheField: NSTextField!
     var contentBox: NSView!
     weak var owner: Floater?
     var didLoadConfig = false
@@ -109,6 +110,22 @@ final class SettingsPanel: NSWindow {
         delayField.frame = NSRect(x: 14, y: y - 15, width: 440, height: 16)
         doc.addSubview(delayField)
         y -= 22
+
+        // 翻译缓存上限
+        let cacheLb = NSTextField(labelWithString: "翻译缓存上限:")
+        cacheLb.font = .systemFont(ofSize: 11)
+        cacheLb.frame = NSRect(x: 14, y: y - 16, width: 110, height: 16)
+        doc.addSubview(cacheLb)
+        cacheField = NSTextField(frame: NSRect(x: 124, y: y - 22, width: 70, height: 22))
+        cacheField.font = .systemFont(ofSize: 11)
+        cacheField.placeholderString = "512"
+        doc.addSubview(cacheField)
+        let cacheHint = NSTextField(labelWithString: "条(重复句子免翻译, 调大更省时占内存; 保存后重启引擎生效)")
+        cacheHint.font = .systemFont(ofSize: 9.5)
+        cacheHint.textColor = .tertiaryLabelColor
+        cacheHint.frame = NSRect(x: 200, y: y - 15, width: 270, height: 14)
+        doc.addSubview(cacheHint)
+        y -= 28
 
         // === ASR 识别模型 ===
         title("识别模型 (ASR)")
@@ -238,13 +255,14 @@ final class SettingsPanel: NSWindow {
               let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let cfg = o["config"] as? [String: Any],
               let models = o["models"] as? [[String: Any]] else { return }
-        // 渠道/代理回填(仅首次加载配置)
+        // 渠道/代理/缓存回填(仅首次加载配置)
         if !didLoadConfig {
             didLoadConfig = true
             let ch = cfg["channel"] as? String ?? "hf-mirror"
             let idx = ["hf-mirror", "hf-official", "modelscope", "custom"].firstIndex(of: ch) ?? 0
             channelPopup.selectItem(at: idx)
             proxyField.stringValue = cfg["proxy"] as? String ?? ""
+            cacheField.stringValue = "\(cfg["cache_size"] as? Int ?? 512)"
         }
         for m in models {
             guard let key = m["key"] as? String, let tup = rows[key] else { continue }
@@ -365,8 +383,10 @@ final class SettingsPanel: NSWindow {
         let idx = channelPopup.indexOfSelectedItem
         if idx >= 0 { a += ["--channel", chMap[idx]] }
         a += ["--proxy", proxyField.stringValue]
+        let cs = Int(cacheField.stringValue.trimmingCharacters(in: .whitespaces)) ?? 0
+        if cs > 0 { a += ["--cache-size", "\(cs)"] }
         _ = runOutput(a)
-        statusLabel.stringValue = "✓ 下载设置已保存"
+        statusLabel.stringValue = "✓ 设置已保存 (缓存改后需重启引擎生效)"
         statusLabel.textColor = .systemGreen
     }
 
@@ -441,7 +461,7 @@ final class Floater: NSWindow, NSWindowDelegate {
             lb.lineBreakMode = .byWordWrapping
             lb.drawsBackground = false
         }
-        enLabel.maximumNumberOfLines = 3
+        enLabel.maximumNumberOfLines = 2
 
         let host = DragView()
         host.wantsLayer = true
@@ -555,7 +575,7 @@ final class Floater: NSWindow, NSWindowDelegate {
         if let s = shown { zhText = s.zh; enText = s.en }
 
         zhLabel.stringValue = zhText.isEmpty ? "…" : zhText
-        let trimmedEn = enText.count > 180 ? "…" + String(enText.suffix(180)) : enText
+        let trimmedEn = enText.count > 100 ? "…" + String(enText.suffix(100)) : enText
         enLabel.stringValue = trimmedEn
         zhLabel.font = .systemFont(ofSize: fontSize, weight: .semibold)
         enLabel.font = .systemFont(ofSize: enFontSize, weight: .regular)
@@ -576,7 +596,7 @@ final class Floater: NSWindow, NSWindowDelegate {
         let zhS = size(zhLabel.stringValue, zhFont)
         let enS = size(enLabel.stringValue, enFont)
         let enLineH = enFont.ascender + abs(enFont.descender) + enFont.leading
-        let enH = enText.isEmpty ? 0 : min(enS.height + 4, enLineH * 3 + 4)
+        let enH = enText.isEmpty ? 0 : min(enS.height + 4, enLineH * 2 + 4)
         let zhH = zhS.height + 4
         let barH = zhH + enH + 8
 

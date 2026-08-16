@@ -43,6 +43,7 @@ DEFAULT_CONFIG = {
     'channel': 'hf-mirror',
     'custom_url': '',
     'proxy': '',
+    'cache_size': 512,
 }
 
 # ---------------- 模型清单 ----------------
@@ -393,7 +394,7 @@ def _stream_download(client, url, fpath, model, fname, pct_base=0.0, pct_span=10
         emit_ndjson({'t': 'DL', 'model': model, 'pct': -1, 'msg': f'{fname} 异常: {e}'})
         return False
 
-def cmd_set(asr, mt, channel, custom_url, proxy):
+def cmd_set(asr, mt, channel, custom_url, proxy, cache_size):
     cfg = load_config()
     if asr:
         if asr not in MANIFEST['asr']:
@@ -411,8 +412,13 @@ def cmd_set(asr, mt, channel, custom_url, proxy):
         cfg['custom_url'] = custom_url.strip()
     if proxy is not None:
         cfg['proxy'] = proxy.strip()
+    if cache_size is not None:
+        try:
+            cfg['cache_size'] = max(64, min(8192, int(cache_size)))
+        except ValueError:
+            print(f'✗ 缓存上限必须是数字: {cache_size}'); sys.exit(1)
     save_config(cfg)
-    print(f'✓ 配置已保存: asr={cfg["asr"]} mt={cfg["mt"]} 渠道={cfg["channel"]}'
+    print(f'✓ 配置已保存: asr={cfg["asr"]} mt={cfg["mt"]} 渠道={cfg["channel"]} 缓存={cfg.get("cache_size")}'
           + (f' 代理={cfg["proxy"]}' if cfg.get('proxy') else ' 无代理'))
 
 def cmd_show():
@@ -433,12 +439,13 @@ if __name__ == '__main__':
     p_set.add_argument('--channel', choices=['hf-mirror', 'hf-official', 'modelscope', 'custom'])
     p_set.add_argument('--custom-url')
     p_set.add_argument('--proxy')
+    p_set.add_argument('--cache-size')
     sub.add_parser('show', help='显示当前配置')
     a = ap.parse_args()
     if a.cmd == 'status':
         if a.json: cmd_status_json()
         else: cmd_status()
     elif a.cmd == 'download': cmd_download(a.model)
-    elif a.cmd == 'set': cmd_set(a.asr, a.mt, a.channel, a.custom_url, a.proxy)
+    elif a.cmd == 'set': cmd_set(a.asr, a.mt, a.channel, a.custom_url, a.proxy, a.cache_size)
     elif a.cmd == 'show': cmd_show()
     else: ap.print_help()
