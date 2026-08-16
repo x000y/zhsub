@@ -133,6 +133,7 @@ class Translator:
         cache_size = int(cfg.get('cache_size', 512) or 512)
         self.cache = ZhCache(maxsize=cache_size)
         self.stop = threading.Event()
+        self.last_cost_ms = 0.0   # 最近一次翻译耗时(自适应节流用)
         threading.Thread(target=self._run, daemon=True).start()
     def submit(self, ms, text, final=False):
         with self.lock:
@@ -143,6 +144,10 @@ class Translator:
                 # partial 抢占: 丢弃未处理的旧 partial, 只留最新一条
                 pending_finals = [x for x in self.q if x[2]]
                 self.q = pending_finals + [(ms, text, False)]
+    def translate_cost(self):
+        """当前翻译线程耗时(毫秒), 供自适应节流"""
+        with self.lock:
+            return self.last_cost_ms
     def _run(self):
         from mlx_lm import load, generate
         from mlx_lm.sample_utils import make_logits_processors, make_sampler
@@ -169,24 +174,28 @@ class Translator:
             if is_final:
                 cached = self.cache.get(text)
                 if cached is not None:
-                    self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': cached, 'cached': True})
+                    self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': cached, 'cached': True, 'lat': 0})
                     continue
             prompt = self.tokenizer.apply_chat_template(
                 [{'role': 'user', 'content': TRANSLATE_PROMPT.format(lang=self.lang, text=text)}],
                 add_generation_prompt=True)
+            t0 = time.time()
             try:
                 out = generate(self.model, self.tokenizer, prompt=prompt,
                                max_tokens=128, sampler=sampler, logits_processors=procs)
             except Exception as e:
                 print(f'[zhsub] 翻译失败: {e}', file=sys.stderr, flush=True)
                 out = ''
+            cost_ms = int((time.time() - t0) * 1000)
+            with self.lock:
+                self.last_cost_ms = cost_ms
             zh = strip_boilerplate(out.strip())
             if zh:
                 if is_final:
                     self.cache.put(text, zh)
-                self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': zh, 'cached': False})
+                self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': zh, 'cached': False, 'lat': cost_ms})
             else:
-                self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': '', 'cached': False})
+                self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': '', 'cached': False, 'lat': cost_ms})
 
 # ---------------- ASR 流式 ----------------
 def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
@@ -210,10 +219,12 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
         txt = rec.get_result(stream).strip()
         if txt and txt != last_partial and (audio_ms - last_partial_ms) >= PARTIAL_MIN_INTERVAL_S * 1000:
             emit({'t': 'P', 'ms': audio_ms, 'text': txt})
-            # partial 翻译节流: 至少间隔 sub_gap 才提交一次,
-            # 避免字幕频繁跳动; 新 partial 抢占旧 partial 保证总是最新的
+            # 自适应节流: 提交间隔 = sub_gap - 最近翻译耗时(上限), 
+            # 翻译慢时自动收紧间隔, 让「间隔+翻译」总节奏稳定不忽快忽慢
+            cost = int(tr.translate_cost())
+            eff_gap = max(350, sub_gap - cost)
             if (len(txt) >= 4 and not is_mostly_chinese(txt)
-                    and (audio_ms - last_translate_ms) >= sub_gap):
+                    and (audio_ms - last_translate_ms) >= eff_gap):
                 tr.submit(audio_ms, txt, final=False)
                 last_translate_ms = audio_ms
             last_partial = txt; last_partial_ms = audio_ms

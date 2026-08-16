@@ -457,6 +457,7 @@ final class Floater: NSWindow, NSWindowDelegate {
     var enText = ""
     var zhText = ""
     var delayMs: Int
+    var lastLatMs: Int = 0   // 最近一次引擎翻译耗时(ms), 用于自动延迟补偿
     var engineProc: Process?
     var settingsBtn: NSButton!
     var settingsPanel: SettingsPanel!
@@ -585,7 +586,11 @@ final class Floater: NSWindow, NSWindowDelegate {
         let text = (o["text"] as? String) ?? ""
         let zh = (o["zh"] as? String) ?? ""
         if t == "P" || t == "F" { enText = text }
-        if t == "Z" && !zh.isEmpty { zhText = zh; enText = text }
+        if t == "Z" && !zh.isEmpty {
+            zhText = zh; enText = text
+            // 记录引擎翻译耗时(自适应显示: 翻译慢=字幕已滞后, 应尽快显示)
+            if let lat = o["lat"] as? Double, lat > 0 { lastLatMs = Int(lat) }
+        }
         entries.append(SubEntry(at: Date(), zh: zhText, en: enText))
         if entries.count > 600 { entries.removeFirst(entries.count - 600) }
     }
@@ -596,7 +601,9 @@ final class Floater: NSWindow, NSWindowDelegate {
             enText = ""; zhText = ""
             startEngine()
         }
-        let cutoff = Date().addingTimeInterval(-Double(delayMs) / 1000.0)
+        // 有效显示延迟 = 手动缓冲 - 引擎已耗时(翻译慢则少缓冲, 保证跟嘴)
+        let effDelay = max(0, delayMs - lastLatMs)
+        let cutoff = Date().addingTimeInterval(-Double(effDelay) / 1000.0)
         var shown: SubEntry? = nil
         while let e = entries.first, e.at <= cutoff { shown = e; entries.removeFirst() }
         if let s = shown { zhText = s.zh; enText = s.en }
