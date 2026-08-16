@@ -189,6 +189,8 @@ class Translator:
                 self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': '', 'cached': False})
 
 # ---------------- ASR 流式 ----------------
+PARTIAL_TRANSLATE_GAP_MS = 1200  # partial 翻译提交最小间隔: 字幕更新节奏 ~1.2s 一次
+
 def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
     rec = make_recognizer()
     tr = Translator(emit, lang=lang)
@@ -196,6 +198,7 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
     last_partial_ms = -9999
     last_partial = ''
     last_final = ''
+    last_translate_ms = -9999
     audio_ms = 0
     for samples in chunks_iter:
         stream.accept_waveform(SR, samples.tolist())
@@ -203,9 +206,12 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
         txt = rec.get_result(stream).strip()
         if txt and txt != last_partial and (audio_ms - last_partial_ms) >= PARTIAL_MIN_INTERVAL_S * 1000:
             emit({'t': 'P', 'ms': audio_ms, 'text': txt})
-            # partial 也送翻译(抢占式): 中文字幕跟嘴, 新 partial 自动覆盖旧的
-            if len(txt) >= 4 and not is_mostly_chinese(txt):
+            # partial 翻译节流: 至少间隔 PARTIAL_TRANSLATE_GAP_MS 才提交一次,
+            # 避免字幕每 0.4s 跳动; 新 partial 抢占旧 partial 保证总是最新的
+            if (len(txt) >= 4 and not is_mostly_chinese(txt)
+                    and (audio_ms - last_translate_ms) >= PARTIAL_TRANSLATE_GAP_MS):
                 tr.submit(audio_ms, txt, final=False)
+                last_translate_ms = audio_ms
             last_partial = txt; last_partial_ms = audio_ms
         if rec.is_endpoint(stream):
             final = rec.get_result(stream).strip()
@@ -221,12 +227,14 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
                         emit({'t': 'Z', 'ms': audio_ms, 'text': tail, 'zh': tail, 'cached': True, 'direct': True})
                     else:
                         tr.submit(audio_ms, tail, final=True)
+                        last_translate_ms = audio_ms
                 last_final = final
                 # 句末重置流: 英文不累积, 每句独立显示
                 rec.reset(stream)
                 last_final = ''
                 last_partial = ''
                 last_partial_ms = -9999
+                last_translate_ms = -9999
         audio_ms += 100
     final = rec.get_result(stream).strip()
     if final and final != last_final:

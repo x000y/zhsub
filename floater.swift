@@ -140,6 +140,8 @@ final class SettingsPanel: NSWindow {
         title("翻译模型")
         y = buildModelRow(doc, y: y, key: "Hy-MT2-1.8B-8bit")
         y -= 5
+        y = buildModelRow(doc, y: y, key: "Hy-MT2-1.8B-4bit")
+        y -= 5
 
         // === 下载设置 ===
         title("下载设置")
@@ -365,7 +367,7 @@ final class SettingsPanel: NSWindow {
     }
 
     func switchTo(_ key: String) {
-        let kind = (key == "Hy-MT2-1.8B-8bit") ? "--mt" : "--asr"
+        let kind = (key.hasPrefix("Hy-MT2")) ? "--mt" : "--asr"
         let s = runOutput(["set", kind, key]) ?? ""
         guard s.contains("✓") else {
             statusLabel.stringValue = "✗ 切换失败: \(s)"

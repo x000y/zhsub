@@ -111,6 +111,16 @@ MANIFEST = {
             'branch': 'main',
             'files': 'auto',
         },
+        'Hy-MT2-1.8B-4bit': {
+            'desc': 'Hy-MT2 1.8B 4bit (快近一倍/961MB; ModelScope 免代理)',
+            'size_mb': 961,
+            'builtin': False,
+            'dir': os.path.join(MT_DIR, 'Hy-MT2-1.8B-4bit'),
+            'hf_repo': 'mlx-community/Hy-MT2-1.8B-4bit',
+            'ms_repo': 'mlx-community/Hy-MT2-1.8B-4bit',
+            'branch': 'main',
+            'files': 'auto',
+        },
     },
 }
 
