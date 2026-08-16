@@ -110,14 +110,6 @@ final class SettingsPanel: NSWindow {
         delayField.font = .systemFont(ofSize: 11)
         delayField.frame = NSRect(x: 14, y: y - 15, width: 440, height: 16)
         doc.addSubview(delayField)
-        y -= 22
-
-        // === 字幕显示 ===
-        title("字幕显示")
-        delayField = NSTextField(labelWithString: "滚轮=缩放字号  Option+滚轮=缓冲延迟 (当前 \(owner?.delayMs ?? 0)ms)")
-        delayField.font = .systemFont(ofSize: 11)
-        delayField.frame = NSRect(x: 14, y: y - 15, width: 440, height: 16)
-        doc.addSubview(delayField)
         y -= 26
 
         // 翻译缓存上限 + 字幕更新间隔 (同一行)
@@ -154,23 +146,23 @@ final class SettingsPanel: NSWindow {
         cacheHint.textColor = .tertiaryLabelColor
         cacheHint.frame = NSRect(x: 14, y: y - 13, width: 440, height: 14)
         doc.addSubview(cacheHint)
-        y -= 20
+        y -= 18
 
         // === ASR 识别模型 ===
         title("识别模型 (ASR)")
         let asrModels = ["en-0626", "multi-zh-hans", "multi-8lang", "multilingual-2025"]
         for key in asrModels {
             y = buildModelRow(doc, y: y, key: key)
-            y -= 3
+            y -= 2
         }
-        y -= 3
+        y -= 2
 
         // === 翻译模型 ===
         title("翻译模型")
         y = buildModelRow(doc, y: y, key: "Hy-MT2-1.8B-8bit")
-        y -= 3
+        y -= 2
         y = buildModelRow(doc, y: y, key: "Hy-MT2-1.8B-4bit")
-        y -= 3
+        y -= 2
 
         // === 下载设置 ===
         title("下载设置")
@@ -183,7 +175,7 @@ final class SettingsPanel: NSWindow {
         channelPopup.target = self
         channelPopup.action = #selector(onChannelChanged)
         doc.addSubview(channelPopup)
-        y -= 27
+        y -= 25
 
         let prLb = NSTextField(labelWithString: "代理:")
         prLb.font = .systemFont(ofSize: 11.5)
@@ -201,7 +193,7 @@ final class SettingsPanel: NSWindow {
         restartBtn.bezelStyle = .rounded
         restartBtn.frame = NSRect(x: 372, y: y - 24, width: 92, height: 24)
         doc.addSubview(restartBtn)
-        y -= 29
+        y -= 27
 
         statusLabel = NSTextField(labelWithString: "")
         statusLabel.font = .systemFont(ofSize: 10.5)
@@ -277,7 +269,7 @@ final class SettingsPanel: NSWindow {
         doc.addSubview(btn)
 
         rows[key] = (stLb, bar, btn)
-        return y - 36
+        return y - 34
     }
 
     // ---------- 数据刷新 ----------
