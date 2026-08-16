@@ -14,3 +14,5 @@ wm-secrets.json
 
 # 日志
 *.log
+zhsub.app/
+pack.sh
