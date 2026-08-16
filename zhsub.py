@@ -123,10 +123,10 @@ TRANSLATE_PROMPT = ("Translate the following text into {lang}. "
                     "without any additional explanation:\n\n{text}")
 
 class Translator:
-    """串行翻译线程: 只在定稿句上调用, 结果经回调发出"""
+    """串行翻译线程: 抢占式 — partial 只留最新一条, final 必译, 保证字幕跟嘴"""
     def __init__(self, emit, lang='Simplified Chinese'):
         self.emit = emit; self.lang = lang
-        self.q = []  # (ms, text)
+        self.q = []  # (ms, text, is_final)
         self.lock = threading.Lock()
         self.model = self.tokenizer = None
         cfg = load_config()
@@ -134,8 +134,15 @@ class Translator:
         self.cache = ZhCache(maxsize=cache_size)
         self.stop = threading.Event()
         threading.Thread(target=self._run, daemon=True).start()
-    def submit(self, ms, text):
-        with self.lock: self.q.append((ms, text))
+    def submit(self, ms, text, final=False):
+        with self.lock:
+            if final:
+                # final 必译, 追加队尾
+                self.q.append((ms, text, True))
+            else:
+                # partial 抢占: 丢弃未处理的旧 partial, 只留最新一条
+                pending_finals = [x for x in self.q if x[2]]
+                self.q = pending_finals + [(ms, text, False)]
     def _run(self):
         from mlx_lm import load, generate
         from mlx_lm.sample_utils import make_logits_processors, make_sampler
@@ -157,23 +164,26 @@ class Translator:
                 if self.q: item = self.q.pop(0)
             if item is None:
                 time.sleep(0.05); continue
-            ms, text = item
-            cached = self.cache.get(text)
-            if cached is not None:
-                self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': cached, 'cached': True})
-                continue
+            ms, text, is_final = item
+            # 仅 final 用缓存(精确+前缀匹配); partial 总是真翻译(保证跟嘴更新)
+            if is_final:
+                cached = self.cache.get(text)
+                if cached is not None:
+                    self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': cached, 'cached': True})
+                    continue
             prompt = self.tokenizer.apply_chat_template(
                 [{'role': 'user', 'content': TRANSLATE_PROMPT.format(lang=self.lang, text=text)}],
                 add_generation_prompt=True)
             try:
                 out = generate(self.model, self.tokenizer, prompt=prompt,
-                               max_tokens=256, sampler=sampler, logits_processors=procs)
+                               max_tokens=128, sampler=sampler, logits_processors=procs)
             except Exception as e:
                 print(f'[zhsub] 翻译失败: {e}', file=sys.stderr, flush=True)
                 out = ''
             zh = strip_boilerplate(out.strip())
             if zh:
-                self.cache.put(text, zh)
+                if is_final:
+                    self.cache.put(text, zh)
                 self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': zh, 'cached': False})
             else:
                 self.emit({'t': 'Z', 'ms': ms, 'text': text, 'zh': '', 'cached': False})
@@ -193,6 +203,9 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
         txt = rec.get_result(stream).strip()
         if txt and txt != last_partial and (audio_ms - last_partial_ms) >= PARTIAL_MIN_INTERVAL_S * 1000:
             emit({'t': 'P', 'ms': audio_ms, 'text': txt})
+            # partial 也送翻译(抢占式): 中文字幕跟嘴, 新 partial 自动覆盖旧的
+            if len(txt) >= 4 and not is_mostly_chinese(txt):
+                tr.submit(audio_ms, txt, final=False)
             last_partial = txt; last_partial_ms = audio_ms
         if rec.is_endpoint(stream):
             final = rec.get_result(stream).strip()
@@ -207,7 +220,7 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
                         # 识别结果是中文: 直接显示原文, 跳过翻译(零延迟)
                         emit({'t': 'Z', 'ms': audio_ms, 'text': tail, 'zh': tail, 'cached': True, 'direct': True})
                     else:
-                        tr.submit(audio_ms, tail)
+                        tr.submit(audio_ms, tail, final=True)
                 last_final = final
                 # 句末重置流: 英文不累积, 每句独立显示
                 rec.reset(stream)
@@ -221,7 +234,7 @@ def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
         if is_mostly_chinese(final):
             emit({'t': 'Z', 'ms': audio_ms, 'text': final, 'zh': final, 'cached': True, 'direct': True})
         else:
-            tr.submit(audio_ms, final)
+            tr.submit(audio_ms, final, final=True)
     time.sleep(4)  # 等翻译线程排空
 
 def emit(x):
