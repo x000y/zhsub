@@ -202,15 +202,20 @@ final class SettingsPanel: NSWindow {
         proxyField.placeholderString = "留空=直连, 如 http://127.0.0.1:1088"
         proxyField.font = .systemFont(ofSize: 13)
         doc.addSubview(proxyField)
-        // 按钮统一右对齐: 保存 + 重启引擎
+        // 按钮统一右对齐: 保存 + 重启引擎 + 退出
         let saveBtn = NSButton(title: "保存", target: self, action: #selector(onSaveSettings))
         saveBtn.bezelStyle = .rounded
-        saveBtn.frame = NSRect(x: W - 178, y: y - 24, width: 64, height: C)
+        saveBtn.frame = NSRect(x: W - 264, y: y - 24, width: 64, height: C)
         doc.addSubview(saveBtn)
         let restartBtn = NSButton(title: "重启引擎", target: self, action: #selector(onRestart))
         restartBtn.bezelStyle = .rounded
-        restartBtn.frame = NSRect(x: W - 106, y: y - 24, width: 86, height: C)
+        restartBtn.frame = NSRect(x: W - 192, y: y - 24, width: 86, height: C)
         doc.addSubview(restartBtn)
+        let quitBtn = NSButton(title: "退出", target: self, action: #selector(onQuit))
+        quitBtn.bezelStyle = .rounded
+        quitBtn.frame = NSRect(x: W - 98, y: y - 24, width: 78, height: C)
+        quitBtn.contentTintColor = .systemRed
+        doc.addSubview(quitBtn)
         y -= 32
 
         // 状态 + 检查更新 (同一行)
@@ -516,6 +521,14 @@ final class SettingsPanel: NSWindow {
         }
     }
 
+    @objc func onQuit() {
+        statusLabel.stringValue = "正在退出…"
+        statusLabel.textColor = .systemOrange
+        owner?.stopEngine()   // 停引擎(含 audiotee)
+        close()
+        NSApp.terminate(nil)
+    }
+
     func showPanel() {
         logUI("showPanel 调用")
         refreshStatus()
@@ -622,6 +635,15 @@ final class Floater: NSWindow, NSWindowDelegate {
     func stopEngine() {
         engineProc?.terminate()
         engineProc = nil
+        // 连带清理引擎子进程 (audiotee 等)
+        let kill = Process()
+        kill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        kill.arguments = ["-f", "zhsub.py --live"]
+        try? kill.run()
+        let kill2 = Process()
+        kill2.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        kill2.arguments = ["-f", "audiotee --sample-rate"]
+        try? kill2.run()
     }
 
     func startEngine() {
