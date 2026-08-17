@@ -18,7 +18,7 @@ let VERSION: String = {
     if let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String, !v.isEmpty {
         return v
     }
-    return "0.1.2"
+    return "0.1.3"
 }()
 let GITHUB_REPO = "x000y/zhsub"
 
@@ -85,8 +85,8 @@ final class SettingsPanel: NSWindow {
 
     init(owner: Floater) {
         self.owner = owner
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 480, height: 602),
-                   styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 480, height: 652),
+                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
         title = "AI 字幕 · 设置"
         level = .floating
         isReleasedWhenClosed = false
@@ -101,7 +101,7 @@ final class SettingsPanel: NSWindow {
     // ---------- UI 构建 (macOS 开源风格: 边缘20/控件高24/行高32/字体三级) ----------
     func buildUI() {
         let W: CGFloat = 480
-        let H: CGFloat = 602
+        let H: CGFloat = 652
         let E: CGFloat = 20          // 四边统一边缘
         let C: CGFloat = 24          // 控件统一高度
         let box = NSView(frame: NSRect(x: 0, y: 0, width: W, height: H))
@@ -203,58 +203,79 @@ final class SettingsPanel: NSWindow {
         prLb.font = .systemFont(ofSize: 13)
         prLb.frame = NSRect(x: E, y: y - 20, width: 40, height: 17)
         doc.addSubview(prLb)
-        proxyField = NSTextField(frame: NSRect(x: E + 44, y: y - 24, width: 220, height: C))
-        proxyField.placeholderString = "留空=直连, 如 http://127.0.0.1:1088"
-        proxyField.font = .systemFont(ofSize: 13)
+        // 代理输入框缩短(右缘194=保存按钮左侧8px空隙)
+        proxyField = NSTextField(frame: NSRect(x: E + 44, y: y - 24, width: 130, height: C))
+        proxyField.placeholderString = "127.0.0.1:1088"
+        proxyField.font = .systemFont(ofSize: 12)
         doc.addSubview(proxyField)
-        // 按钮统一右对齐: 保存 + 重启引擎 + 退出
+        // 按钮统一右对齐到460: 保存 + 重启引擎 + 退出软件 (组右缘与下方按钮对齐)
+        let btnH: CGFloat = 20
+        let btnGap: CGFloat = 8
+        // 组: 保存(64) 重启引擎(86) 退出软件(92) = 258, 右缘460 → 起点 202
         let saveBtn = NSButton(title: "保存", target: self, action: #selector(onSaveSettings))
         saveBtn.bezelStyle = .rounded
-        saveBtn.frame = NSRect(x: W - 264, y: y - 24, width: 64, height: C)
+        saveBtn.font = .systemFont(ofSize: 12)
+        saveBtn.frame = NSRect(x: W - E - 258, y: y - 22, width: 64, height: btnH)
         doc.addSubview(saveBtn)
         let restartBtn = NSButton(title: "重启引擎", target: self, action: #selector(onRestart))
         restartBtn.bezelStyle = .rounded
-        restartBtn.frame = NSRect(x: W - 192, y: y - 24, width: 86, height: C)
+        restartBtn.font = .systemFont(ofSize: 12)
+        restartBtn.frame = NSRect(x: W - E - 258 + 64 + btnGap, y: y - 22, width: 86, height: btnH)
         doc.addSubview(restartBtn)
-        let quitBtn = NSButton(title: "退出", target: self, action: #selector(onQuit))
+        let quitBtn = NSButton(title: "退出软件", target: self, action: #selector(onQuit))
         quitBtn.bezelStyle = .rounded
-        quitBtn.frame = NSRect(x: W - 98, y: y - 24, width: 78, height: C)
+        quitBtn.font = .systemFont(ofSize: 12)
+        quitBtn.frame = NSRect(x: W - E - 258 + 64 + btnGap + 86 + btnGap, y: y - 22, width: 92, height: btnH)
         quitBtn.contentTintColor = .systemRed
         doc.addSubview(quitBtn)
-        y -= 32
+        y -= 51.25
 
-        // 状态 + 检查更新 (同一行)
-        statusLabel = NSTextField(labelWithString: "")
-        statusLabel.font = .systemFont(ofSize: 11)
-        statusLabel.textColor = .systemGreen
-        statusLabel.frame = NSRect(x: E, y: y - 14, width: 250, height: 14)
-        doc.addSubview(statusLabel)
-        let updBtn = NSButton(title: "检查更新", target: self, action: #selector(checkUpdate))
-        updBtn.bezelStyle = .inline
-        updBtn.font = .systemFont(ofSize: 11)
-        updBtn.frame = NSRect(x: W - E - 80, y: y - 20, width: 80, height: 20)
-        doc.addSubview(updBtn)
-        y -= 30
-
-        // 系统音频权限提示 + 一键授权 (不出字幕时排查用)
+        // ═══ 底部: 3 行, 左缘E=20 右缘W-E=460 对称, 行内元素垂直中心对齐 ═══
+        let rightE: CGFloat = W - E   // 460
+        var rowC: CGFloat = y - 12   // 行中心线 (24高控件中心)
+        func t(_ h: CGFloat) -> CGFloat { rowC - h / 2 }   // 文字/按钮: 中心对齐
+        // 行1: 系统音频权限提示 (左) | [前往授权→] (右对齐460)
         let permHint = NSTextField(labelWithString: "系统音频权限: 若不出字幕请检查")
         permHint.font = .systemFont(ofSize: 11)
         permHint.textColor = .secondaryLabelColor
-        permHint.frame = NSRect(x: E, y: y - 16, width: 220, height: 16)
+        permHint.frame = NSRect(x: E, y: t(17), width: 220, height: 17)
         doc.addSubview(permHint)
         let permBtn = NSButton(title: "前往授权 →", target: self, action: #selector(openAudioPermission))
         permBtn.bezelStyle = .inline
         permBtn.font = .systemFont(ofSize: 11)
-        permBtn.frame = NSRect(x: W - E - 100, y: y - 20, width: 100, height: 20)
+        permBtn.frame = NSRect(x: rightE - 92, y: t(C), width: 92, height: C)
         permBtn.contentTintColor = .systemOrange
         doc.addSubview(permBtn)
-        y -= 30
+        y -= 51.25
 
-        // GitHub 链接 + 版本号 (同一行: 左=[🐱易+地址], 右=v版本号)
+        // 行2: 状态 (左) | v版本号 (中心对齐重启引擎331) | [检查更新] (中心对齐退出软件414)
+        rowC = y - 12
+        statusLabel = NSTextField(labelWithString: "")
+        statusLabel.font = .systemFont(ofSize: 11)
+        statusLabel.textColor = .systemGreen
+        statusLabel.frame = NSRect(x: E, y: t(17), width: 230, height: 17)
+        doc.addSubview(statusLabel)
+        let updBtn = NSButton(title: "检查更新", target: self, action: #selector(checkUpdate))
+        updBtn.bezelStyle = .inline
+        updBtn.font = .systemFont(ofSize: 11)
+        updBtn.frame = NSRect(x: 414 - 37, y: t(C), width: 74, height: C)   // 中心414=退出软件中心
+        doc.addSubview(updBtn)
+        // 版本号: 水平中心 = 重启引擎按钮中心 (288 + 86/2 = 331)
+        let ver = NSTextField(labelWithString: "v\(VERSION)")
+        ver.font = .boldSystemFont(ofSize: 11)
+        ver.textColor = .secondaryLabelColor
+        ver.alignment = .center
+        ver.frame = NSRect(x: 331 - 21, y: t(17), width: 42, height: 17)
+        doc.addSubview(ver)
+        y -= 51.25
+
+        // 行3: 🐱易(左,不动) | github地址(等距居中) | DeepSeek 作品(右对齐460,不动)
+        // 等距: 🐱易右缘72 → gap50 → 地址(122-242) → gap50 → 作品(292-460, 宽168)
+        rowC = y - 12
         let ghBtn = NSButton(title: "易", target: self, action: #selector(openGitHub))
         ghBtn.bezelStyle = .inline
         ghBtn.font = .systemFont(ofSize: 11)
-        ghBtn.frame = NSRect(x: E, y: y - 20, width: 60, height: 20)
+        ghBtn.frame = NSRect(x: E, y: t(C), width: 52, height: C)
         ghBtn.toolTip = "https://github.com/x000y/zhsub"
         if let ghImg = NSImage(contentsOfFile: ASSET_DIR + "/github-mark.png") {
             ghImg.size = NSSize(width: 16, height: 16)
@@ -265,31 +286,27 @@ final class SettingsPanel: NSWindow {
         ghBtn.target = self
         ghBtn.action = #selector(openGitHub)
         doc.addSubview(ghBtn)
-        let ghUrl = NSTextField(labelWithString: "github.com/x000y/zhsub")
-        ghUrl.font = .systemFont(ofSize: 11)
-        ghUrl.textColor = .tertiaryLabelColor
-        ghUrl.frame = NSRect(x: E + 62, y: y - 17, width: 180, height: 14)
+        // 地址: 可点击跳转 (NSButton 链接样式, 加宽防截断)
+        let ghUrl = NSButton(title: "github.com/x000y/zhsub", target: self, action: #selector(openGitHub))
+        ghUrl.bezelStyle = .inline
+        ghUrl.font = .systemFont(ofSize: 10.5)
+        ghUrl.contentTintColor = .secondaryLabelColor
+        ghUrl.frame = NSRect(x: 76, y: t(C), width: 208, height: C)
+        ghUrl.toolTip = "打开 GitHub 仓库"
         doc.addSubview(ghUrl)
-        // 版本号: 与上方「检查更新」按钮同列居中 (x = W-E-80, 宽80, 文本居中)
-        let ver = NSTextField(labelWithString: "v\(VERSION)")
-        ver.font = .boldSystemFont(ofSize: 11)
-        ver.textColor = .secondaryLabelColor
-        ver.alignment = .center
-        ver.frame = NSRect(x: W - E - 80, y: y - 17, width: 80, height: 14)
-        doc.addSubview(ver)
-        y -= 30
-
-        // DeepSeek Harness 作品 (居中, 独立一行, 底部边缘 20)
+        // 作品: 右对齐460, 字号10, 占位292-460(宽168, 文字估宽165px可容纳)
         let credit = NSTextField(labelWithString: "DeepSeek Harness v4 Flash 作品")
-        credit.font = .systemFont(ofSize: 11)
+        credit.font = .systemFont(ofSize: 10)
         credit.textColor = .tertiaryLabelColor
-        credit.alignment = .center
-        credit.frame = NSRect(x: (W - 220) / 2, y: y - 16, width: 220, height: 14)
+        credit.alignment = .right
+        credit.frame = NSRect(x: 292, y: t(17), width: 168, height: 17)
         doc.addSubview(credit)
 
         box.addSubview(doc)
         contentView = box
         setContentSize(NSSize(width: W, height: H))
+        minSize = NSSize(width: W, height: H)
+        maxSize = NSSize(width: W, height: H)
         center()
     }
 

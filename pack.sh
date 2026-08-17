@@ -20,7 +20,7 @@ if [ -n "$VERSION_ARG" ]; then
   VERSION="$VERSION_ARG"
 else
   VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//') || true
-  [ -z "$VERSION" ] && VERSION="0.1.2"
+  [ -z "$VERSION" ] && VERSION="0.1.3"
 fi
 echo "📦 打包版本: v$VERSION  模式: $([ "$FULL" = true ] && echo '完整版(内置模型)' || echo '瘦身版(按需下载)')"
 
