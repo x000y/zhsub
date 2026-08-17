@@ -33,11 +33,11 @@ echo "▶ 4/5 复制 Python 环境 (深度精简: 删测试/文档/下载库/多
 rsync -a --exclude='__pycache__' --exclude='*.pyc' --exclude='tests' --exclude='docs' \
   --exclude='*.dist-info/RECORD' --exclude='bin/activate*' --exclude='bin/pip*' --exclude='bin/pytest*' \
   "$SRC/.venv/" "$APP/Contents/Resources/venv/"
-# 删除运行时不需要的包: 下载已改自研 httpx, 不再需要 huggingface_hub / hf_xet / pygments / PyObjCTest
+# 删除运行时不需要的包: huggingface_hub 是 mlx_lm 依赖必须保留!
+# 只删: pygments / PyObjCTest / pytest / dateutil(部分不需要)
 SP="$APP/Contents/Resources/venv/lib/python3.12/site-packages"
-rm -rf "$SP/huggingface_hub" "$SP/huggingface_hub-"* "$SP/hf_xet" "$SP/hf_xet-"* \
-       "$SP/pygments" "$SP/pygments-"* "$SP/PyObjCTest" "$SP/pytest" "$SP/pytest-"* \
-       "$SP/_pytest" "$SP/dateutil" "$SP/six.py" 2>/dev/null || true
+rm -rf "$SP/pygments" "$SP/pygments-"* "$SP/PyObjCTest" "$SP/pytest" "$SP/pytest-"* \
+       "$SP/_pytest" 2>/dev/null || true
 # 只保留 arm64 架构(去掉 x86_64 slice, 原生M系)
 for f in "$SP/mlx"*/*.so "$SP/numpy"*/*.so "$SP/sherpa_onnx"/*.so "$SP/transformers"/*.so; do
   [ -f "$f" ] || continue
