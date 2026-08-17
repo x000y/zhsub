@@ -82,6 +82,8 @@ final class SettingsPanel: NSWindow {
     var contentBox: NSView!
     weak var owner: Floater?
     var didLoadConfig = false
+    var verLabel: NSTextField!      // 版本号显示(自动更新用)
+    var updateBtn: NSButton!        // 检查更新按钮(自动更新用)
 
     init(owner: Floater) {
         self.owner = owner
@@ -260,6 +262,7 @@ final class SettingsPanel: NSWindow {
         updBtn.font = .systemFont(ofSize: 11)
         updBtn.frame = NSRect(x: 414 - 37, y: t(C), width: 74, height: C)   // 中心414=退出软件中心
         doc.addSubview(updBtn)
+        updateBtn = updBtn
         // 版本号: 水平中心 = 重启引擎按钮中心 (288 + 86/2 = 331)
         let ver = NSTextField(labelWithString: "v\(VERSION)")
         ver.font = .boldSystemFont(ofSize: 11)
@@ -267,6 +270,7 @@ final class SettingsPanel: NSWindow {
         ver.alignment = .center
         ver.frame = NSRect(x: 331 - 21, y: t(17), width: 42, height: 17)
         doc.addSubview(ver)
+        verLabel = ver
         y -= 51.25
 
         // 行3: 🐱易(左,不动) | github地址(等距居中) | DeepSeek 作品(右对齐460,不动)
@@ -333,6 +337,45 @@ final class SettingsPanel: NSWindow {
         statusLabel.textColor = .systemOrange
     }
 
+    // 版本号比较: v0.1.3 > v0.1.2 → true (a 比 b 新)
+    func versionNewer(_ a: String, _ b: String) -> Bool {
+        let pa = a.replacingOccurrences(of: "v", with: "").split(separator: ".").compactMap { Int($0) }
+        let pb = b.replacingOccurrences(of: "v", with: "").split(separator: ".").compactMap { Int($0) }
+        for i in 0..<max(pa.count, pb.count) {
+            let x = i < pa.count ? pa[i] : 0
+            let y = i < pb.count ? pb[i] : 0
+            if x != y { return x > y }
+        }
+        return false
+    }
+
+    // 启动自动检查: 比对 GitHub 最新版本, 本地旧则自动更新版本号显示
+    func autoCheckVersion() {
+        Task {
+            var latest = ""
+            let url = URL(string: "https://api.github.com/repos/x000y/zhsub/releases/latest")!
+            var req = URLRequest(url: url)
+            req.timeoutInterval = 10
+            req.setValue("zhsub-checker", forHTTPHeaderField: "User-Agent")
+            if let (d, _) = try? await URLSession.shared.data(for: req),
+               let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+               let tag = o["tag_name"] as? String {
+                latest = tag
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let s = self, !latest.isEmpty else { return }
+                let cur = "v" + VERSION
+                if s.versionNewer(latest, cur) {
+                    // 本地旧 → 自动更新版本号显示 + 状态提示
+                    s.verLabel.stringValue = "→\(latest)"
+                    s.verLabel.textColor = .systemOrange
+                    s.statusLabel.stringValue = "发现新版本 \(latest) (当前\(cur)) → 点检查更新下载"
+                    s.statusLabel.textColor = .systemBlue
+                }
+            }
+        }
+    }
+
     @objc func checkUpdate() {
         statusLabel.stringValue = "检查更新中…"
         statusLabel.textColor = .systemOrange
@@ -366,6 +409,9 @@ final class SettingsPanel: NSWindow {
                     s.statusLabel.stringValue = "已是最新版本 \(cur)"
                     s.statusLabel.textColor = .systemGreen
                 } else {
+                    // 本地旧 → 更新版本号显示 + 打开下载页
+                    s.verLabel.stringValue = "→\(latest)"
+                    s.verLabel.textColor = .systemOrange
                     s.statusLabel.stringValue = "发现新版本 \(latest) → 已打开下载页"
                     s.statusLabel.textColor = .systemBlue
                     if let u = URL(string: "https://github.com/x000y/zhsub/releases/latest") {
@@ -585,6 +631,7 @@ final class SettingsPanel: NSWindow {
     func showPanel() {
         logUI("showPanel 调用")
         refreshStatus()
+        autoCheckVersion()   // 打开面板时自动比对 GitHub 版本号
         orderFrontRegardless()
         makeKeyAndOrderFront(nil)
         logUI("showPanel 完成, isVisible=\(isVisible)")
