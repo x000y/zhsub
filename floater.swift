@@ -265,19 +265,19 @@ final class SettingsPanel: NSWindow {
         updBtn.frame = NSRect(x: 414 - 37, y: t(C), width: 74, height: C)   // 中心414=退出软件中心
         doc.addSubview(updBtn)
         updateBtn = updBtn
-        // 下载进度条: 版本号左侧 (更新时显示)
-        let prog = NSProgressIndicator(frame: NSRect(x: 250, y: t(8), width: 54, height: 8))
+        // 下载进度条: 版本号左侧 (更新时显示), 宽38不挡版本号(296起)
+        let prog = NSProgressIndicator(frame: NSRect(x: 250, y: t(8), width: 38, height: 8))
         prog.isIndeterminate = false
         prog.minValue = 0; prog.maxValue = 100; prog.doubleValue = 0
         prog.isHidden = true
         doc.addSubview(prog)
         dlProgress = prog
-        // 版本号: 水平中心 = 重启引擎按钮中心 (288 + 86/2 = 331)
+        // 版本号: 水平中心 = 重启引擎按钮中心 (288 + 86/2 = 331), 宽70容纳→v0.1.3
         let ver = NSTextField(labelWithString: "v\(VERSION)")
         ver.font = .boldSystemFont(ofSize: 11)
         ver.textColor = .secondaryLabelColor
         ver.alignment = .center
-        ver.frame = NSRect(x: 331 - 21, y: t(17), width: 42, height: 17)
+        ver.frame = NSRect(x: 331 - 35, y: t(17), width: 70, height: 17)
         doc.addSubview(ver)
         verLabel = ver
         y -= 51.25
