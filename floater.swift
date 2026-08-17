@@ -84,6 +84,8 @@ final class SettingsPanel: NSWindow {
     var didLoadConfig = false
     var verLabel: NSTextField!      // 版本号显示(自动更新用)
     var updateBtn: NSButton!        // 检查更新按钮(自动更新用)
+    var dlProgress: NSProgressIndicator!  // 下载进度条(版本号左侧)
+    var dlStatus: NSTextField!      // 下载状态文字(百分比/新版本内容)
 
     init(owner: Floater) {
         self.owner = owner
@@ -263,6 +265,13 @@ final class SettingsPanel: NSWindow {
         updBtn.frame = NSRect(x: 414 - 37, y: t(C), width: 74, height: C)   // 中心414=退出软件中心
         doc.addSubview(updBtn)
         updateBtn = updBtn
+        // 下载进度条: 版本号左侧 (更新时显示)
+        let prog = NSProgressIndicator(frame: NSRect(x: 250, y: t(8), width: 54, height: 8))
+        prog.isIndeterminate = false
+        prog.minValue = 0; prog.maxValue = 100; prog.doubleValue = 0
+        prog.isHidden = true
+        doc.addSubview(prog)
+        dlProgress = prog
         // 版本号: 水平中心 = 重启引擎按钮中心 (288 + 86/2 = 331)
         let ver = NSTextField(labelWithString: "v\(VERSION)")
         ver.font = .boldSystemFont(ofSize: 11)
@@ -366,11 +375,12 @@ final class SettingsPanel: NSWindow {
                 guard let s = self, !latest.isEmpty else { return }
                 let cur = "v" + VERSION
                 if s.versionNewer(latest, cur) {
-                    // 本地旧 → 自动更新版本号显示 + 状态提示
+                    // 本地旧 → 自动更新版本号显示 + 自动下载更新
                     s.verLabel.stringValue = "→\(latest)"
                     s.verLabel.textColor = .systemOrange
-                    s.statusLabel.stringValue = "发现新版本 \(latest) (当前\(cur)) → 点检查更新下载"
+                    s.statusLabel.stringValue = "发现新版本 \(latest) → 自动下载更新…"
                     s.statusLabel.textColor = .systemBlue
+                    s.downloadAndUpdate(latest)
                 }
             }
         }
@@ -409,15 +419,88 @@ final class SettingsPanel: NSWindow {
                     s.statusLabel.stringValue = "已是最新版本 \(cur)"
                     s.statusLabel.textColor = .systemGreen
                 } else {
-                    // 本地旧 → 更新版本号显示 + 打开下载页
+                    // 本地旧 → 更新版本号显示 + 自动下载更新
                     s.verLabel.stringValue = "→\(latest)"
                     s.verLabel.textColor = .systemOrange
-                    s.statusLabel.stringValue = "发现新版本 \(latest) → 已打开下载页"
+                    s.statusLabel.stringValue = "发现新版本 \(latest) → 开始下载更新…"
                     s.statusLabel.textColor = .systemBlue
-                    if let u = URL(string: "https://github.com/x000y/zhsub/releases/latest") {
-                        NSWorkspace.shared.open(u)
-                    }
+                    s.downloadAndUpdate(latest)
                 }
+            }
+        }
+    }
+
+    // App 内直接更新: 下载新 dmg → 解压替换 → 提示重启
+    func downloadAndUpdate(_ latest: String) {
+        let urlStr = "https://github.com/x000y/zhsub/releases/download/\(latest)/zhsub-\(latest.replacingOccurrences(of: "v", with: ""))-drag.dmg"
+        guard let url = URL(string: urlStr) else { return }
+        updateBtn.isEnabled = false
+        updateBtn.title = "更新中…"
+        dlProgress.isHidden = false
+        dlProgress.doubleValue = 0
+        let dest = URL(fileURLWithPath: NSTemporaryDirectory() + "zhsub-\(latest).dmg")
+        let task = URLSession.shared.downloadTask(with: url) { [weak self] tmpURL, resp, err in
+            guard let self else { return }
+            if let tmpURL = tmpURL {
+                try? FileManager.default.removeItem(at: dest)
+                try? FileManager.default.moveItem(at: tmpURL, to: dest)
+            }
+            DispatchQueue.main.async {
+                self.dlProgress.isHidden = true
+                if FileManager.default.fileExists(atPath: dest.path), err == nil {
+                    self.statusLabel.stringValue = "下载完成 \(latest) → 正在替换…"
+                    self.statusLabel.textColor = .systemGreen
+                    self.installUpdate(dest.path, latest: latest)
+                } else {
+                    self.statusLabel.stringValue = "下载失败: \(err?.localizedDescription ?? "未知")"
+                    self.statusLabel.textColor = .systemRed
+                    self.updateBtn.isEnabled = true
+                    self.updateBtn.title = "检查更新"
+                }
+            }
+        }
+        // 进度观察
+        let progress = task.progress
+        progress.observe(\.fractionCompleted, options: [.new]) { [weak self] p, _ in
+            DispatchQueue.main.async {
+                self?.dlProgress.doubleValue = p.fractionCompleted * 100
+            }
+        }
+        task.resume()
+    }
+
+    // 解压 dmg 替换 /Applications/zhsub.app, 重启
+    func installUpdate(_ dmgPath: String, latest: String) {
+        statusLabel.stringValue = "正在替换为 \(latest)…"
+        statusLabel.textColor = .systemOrange
+        DispatchQueue.global().async { [weak self] in
+            // 挂载 dmg
+            let mount = Process()
+            mount.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+            mount.arguments = ["attach", dmgPath, "-nobrowse", "-mountpoint", "/tmp/zhsub-mnt"]
+            try? mount.run()
+            mount.waitUntilExit()
+            // 替换 app
+            let appPath = "/tmp/zhsub-mnt/zhsub.app"
+            let target = "/Applications/zhsub.app"
+            if FileManager.default.fileExists(atPath: appPath) {
+                try? FileManager.default.removeItem(atPath: target)
+                try? FileManager.default.copyItem(atPath: appPath, toPath: target)
+            }
+            // 卸载 dmg
+            let detach = Process()
+            detach.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+            detach.arguments = ["detach", "/tmp/zhsub-mnt"]
+            try? detach.run()
+            detach.waitUntilExit()
+            try? FileManager.default.removeItem(atPath: dmgPath)
+            DispatchQueue.main.async {
+                self?.statusLabel.stringValue = "✓ 已更新到 \(latest)! 重启 App 生效"
+                self?.statusLabel.textColor = .systemGreen
+                self?.verLabel.stringValue = "v\(latest.replacingOccurrences(of: "v", with: ""))"
+                self?.verLabel.textColor = .secondaryLabelColor
+                self?.updateBtn.isEnabled = true
+                self?.updateBtn.title = "检查更新"
             }
         }
     }
