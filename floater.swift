@@ -85,7 +85,7 @@ final class SettingsPanel: NSWindow {
 
     init(owner: Floater) {
         self.owner = owner
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 480, height: 564),
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 480, height: 598),
                    styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         title = "AI 字幕 · 设置"
         level = .floating
@@ -101,7 +101,7 @@ final class SettingsPanel: NSWindow {
     // ---------- UI 构建 (macOS 开源风格: 边缘20/控件高24/行高32/字体三级) ----------
     func buildUI() {
         let W: CGFloat = 480
-        let H: CGFloat = 570
+        let H: CGFloat = 598
         let E: CGFloat = 20          // 四边统一边缘
         let C: CGFloat = 24          // 控件统一高度
         let box = NSView(frame: NSRect(x: 0, y: 0, width: W, height: H))
@@ -233,13 +233,13 @@ final class SettingsPanel: NSWindow {
 
         // 系统音频权限提示 + 一键授权 (不出字幕时排查用)
         let permHint = NSTextField(labelWithString: "系统音频权限: 若不出字幕请检查")
-        permHint.font = .systemFont(ofSize: 10.5)
+        permHint.font = .systemFont(ofSize: 11)
         permHint.textColor = .secondaryLabelColor
         permHint.frame = NSRect(x: E, y: y - 16, width: 220, height: 16)
         doc.addSubview(permHint)
         let permBtn = NSButton(title: "前往授权 →", target: self, action: #selector(openAudioPermission))
         permBtn.bezelStyle = .inline
-        permBtn.font = .systemFont(ofSize: 10.5)
+        permBtn.font = .systemFont(ofSize: 11)
         permBtn.frame = NSRect(x: W - E - 100, y: y - 20, width: 100, height: 20)
         permBtn.contentTintColor = .systemOrange
         doc.addSubview(permBtn)
