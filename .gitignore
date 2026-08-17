@@ -9,11 +9,13 @@ floater
 zhsub-app
 wm-secrets.json
 
+# 打包产物 (不入库, 发版走 GitHub Release)
+zhsub.app/
+*.dmg
+*.zip
+
 # macOS
 .DS_Store
 
 # 日志
 *.log
-zhsub.app/
-pack.sh
-zhsub-v0.1.2-macos.zip
