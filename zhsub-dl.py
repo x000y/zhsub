@@ -277,10 +277,9 @@ def cmd_download(model):
         if cfg.get('channel') == 'modelscope':
             names = _ms_list_files(base, repo)
         else:
-            from huggingface_hub import list_repo_files
             print('  获取仓库文件列表 …')
             try:
-                names = list_repo_files(repo_id=repo, endpoint=base, token=None)
+                names = _hf_list_files(base, repo)
             except Exception as e:
                 print(f'✗ 无法获取文件列表(仓库 gated 或网络不通): {e}')
                 print('  提示: 该仓库需要 HF 账号访问, 或改用 hf-mirror 渠道 + 代理')
@@ -350,6 +349,21 @@ def _ms_list_files(base, repo):
         if f.get('Type') == 'tree':
             continue
         out.append(p)
+    return out
+
+def _hf_list_files(base, repo):
+    """用 HF API 列仓库文件 (递归) — httpx 实现, 不依赖 huggingface_hub。"""
+    import httpx
+    url = f'{base}/api/models/{repo}/tree/main?recursive=true'
+    with httpx.Client(timeout=30.0) as c:
+        r = c.get(url)
+        r.raise_for_status()
+        d = r.json()
+    out = []
+    if isinstance(d, list):
+        for f in d:
+            if f.get('type') == 'file':
+                out.append(f.get('path', ''))
     return out
 
 def _write_model_json(dest, m):

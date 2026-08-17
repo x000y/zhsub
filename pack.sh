@@ -1,11 +1,20 @@
 #!/bin/bash
-# 打包 zhsub.app (macOS) — v0.1.2
-# 用法: bash pack.sh
+# 打包 zhsub.app (macOS) — 方案2: 瘦身版(模型按需下载)
+# 版本号自动从 git tag 读取: 发版流程 = git tag v0.1.3 && bash pack.sh && gh release create ...
+# 用法: bash pack.sh [版本号覆盖]
 set -e
 cd "$(dirname "$0")"
 APP=zhsub.app
-VERSION=0.1.2
 SRC=~/zh-sub-engine
+
+# ---- 版本号: 参数 > git tag > 默认 ----
+if [ -n "$1" ]; then
+  VERSION="$1"
+else
+  VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//') || true
+  [ -z "$VERSION" ] && VERSION="0.1.2"
+fi
+echo "📦 打包版本: v$VERSION"
 
 echo "▶ 1/5 编译 floater…"
 swiftc -O "$SRC/floater.swift" -o /tmp/zhsub-bin-floater
@@ -13,23 +22,32 @@ swiftc -O "$SRC/floater.swift" -o /tmp/zhsub-bin-floater
 echo "▶ 2/5 创建 .app 结构…"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/engine" \
-         "$APP/Contents/Resources/venv" "$APP/Contents/Resources/models" \
-         "$APP/Contents/Resources/assets"
+         "$APP/Contents/Resources/venv" "$APP/Contents/Resources/assets"
 
-echo "▶ 3/5 复制引擎 + 模型 + 资源…"
+echo "▶ 3/5 复制引擎 + 资源 (模型按需下载, 不内置)…"
 cp /tmp/zhsub-bin-floater "$APP/Contents/MacOS/zhsub"
 cp "$SRC"/zhsub.py "$SRC"/zhsub-dl.py "$SRC"/zhsub-mt.py "$SRC"/subtitles.sh "$APP/Contents/Resources/engine/"
 cp -R "$SRC/assets"/* "$APP/Contents/Resources/assets/" 2>/dev/null || true
-cp -R "$SRC/models/streaming-zipformer-en-0626" "$APP/Contents/Resources/models/" 2>/dev/null || echo "  ⚠ 内置英文模型未找到(从源码目录复制)"; 
 
-echo "▶ 4/5 复制 Python 环境 (精简)…"
-# 排除缓存/测试/文档, 保留运行必需
+echo "▶ 4/5 复制 Python 环境 (深度精简: 删测试/文档/下载库/多余架构)…"
 rsync -a --exclude='__pycache__' --exclude='*.pyc' --exclude='tests' --exclude='docs' \
-  --exclude='*.dist-info/RECORD' "$SRC/.venv/" "$APP/Contents/Resources/venv/"
-# venv 的 python 是符号链接, 确保保留
+  --exclude='*.dist-info/RECORD' --exclude='bin/activate*' --exclude='bin/pip*' --exclude='bin/pytest*' \
+  "$SRC/.venv/" "$APP/Contents/Resources/venv/"
+# 删除运行时不需要的包: 下载已改自研 httpx, 不再需要 huggingface_hub / hf_xet / pygments / PyObjCTest
+SP="$APP/Contents/Resources/venv/lib/python3.12/site-packages"
+rm -rf "$SP/huggingface_hub" "$SP/huggingface_hub-"* "$SP/hf_xet" "$SP/hf_xet-"* \
+       "$SP/pygments" "$SP/pygments-"* "$SP/PyObjCTest" "$SP/pytest" "$SP/pytest-"* \
+       "$SP/_pytest" "$SP/dateutil" "$SP/six.py" 2>/dev/null || true
+# 只保留 arm64 架构(去掉 x86_64 slice, 原生M系)
+for f in "$SP/mlx"*/*.so "$SP/numpy"*/*.so "$SP/sherpa_onnx"/*.so "$SP/transformers"/*.so; do
+  [ -f "$f" ] || continue
+  lipo -archs "$f" 2>/dev/null | grep -q "arm64" && lipo -archs "$f" 2>/dev/null | grep -q "x86_64" && \
+    lipo -thin arm64 "$f" -output "$f" 2>/dev/null && echo "  thin: $(basename "$f")"
+done
+# venv python 符号链接
 cp -L "$SRC/.venv/bin/python3"* "$APP/Contents/Resources/venv/bin/" 2>/dev/null || true
 
-echo "▶ 5/5 写 Info.plist + 图标…"
+echo "▶ 5/5 写 Info.plist…"
 cat > "$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -49,10 +67,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
 </dict>
 </plist>
 EOF
-# 图标: 生成简单 app 图标 (用 GitHub mark 放大占位, 后续可换)
-sips -z 512 512 "$APP/Contents/Resources/assets/github-mark.png" --out /tmp/zhsub-icon.png >/dev/null 2>&1 || true
-iconutil -c icns /tmp/zhsub-icon.iconset 2>/dev/null || true
 
 chmod +x "$APP/Contents/MacOS/zhsub"
 echo "✅ 打包完成: $APP ($(du -sh "$APP" | awk '{print $1}'))"
-echo "   App: $SRC/$APP"
+echo "   App: $SRC/$APP  (首次运行需在设置面板下载英文ASR模型)"

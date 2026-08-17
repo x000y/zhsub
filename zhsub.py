@@ -39,10 +39,13 @@ def load_config():
     return dict(DEFAULT_CONFIG)
 
 def resolve_asr_dir(cfg):
-    """根据配置返回 ASR 模型目录。en-0626 用内置路径, 其余用下载目录。"""
+    """根据配置返回 ASR 模型目录。en-0626 优先内置, 否则用下载目录。"""
     key = cfg.get('asr', 'en-0626')
     if key == 'en-0626':
-        return f'{BASE}/models/streaming-zipformer-en-0626'
+        builtin = f'{BASE}/models/streaming-zipformer-en-0626'
+        if os.path.isdir(builtin):
+            return builtin
+        return os.path.join(APP_SUPPORT, 'models', 'asr', 'en-0626')
     return os.path.join(APP_SUPPORT, 'models', 'asr', key)
 
 def make_recognizer():
@@ -63,7 +66,10 @@ def make_recognizer():
     dec = pick('decoder-epoch', prefer_int8=False)
     joi = pick('joiner-epoch')
     if not (enc and dec and joi):
-        raise SystemExit(f'✗ ASR 模型文件不完整: {mdir} (缺 encoder/decoder/joiner)')
+        print(f'[zhsub] ✗ ASR 模型未下载: {cfg.get("asr")} (目录 {mdir})', file=sys.stderr, flush=True)
+        print(f'[zhsub] 请在设置面板 → 识别模型 → 下载, 或运行: zhsub-dl.py download --model {cfg.get("asr")}',
+              file=sys.stderr, flush=True)
+        return None
     kwargs = dict(tokens=tokens, encoder=enc, decoder=dec, joiner=joi,
                   num_threads=2, sample_rate=SR, feature_dim=80,
                   enable_endpoint_detection=True)
@@ -201,6 +207,13 @@ class Translator:
 def stream_audio(chunks_iter, emit, lang='Simplified Chinese'):
     rec = make_recognizer()
     tr = Translator(emit, lang=lang)
+    if rec is None:
+        # 模型未下载: 输出提示事件, 保持进程存活等 floater 引导下载
+        cfg = load_config()
+        emit({'t': 'Z', 'ms': 0, 'text': '', 'zh': f'⚠ 识别模型未下载: {cfg.get("asr")}',
+              'cached': True, 'direct': True, 'notice': True})
+        time.sleep(3600)  # 挂起等待, 不退出
+        return
     stream = rec.create_stream()
     # 字幕更新间隔: 从配置读 (partial 翻译提交最小间隔, 默认 1200ms)
     try:
