@@ -85,7 +85,7 @@ final class SettingsPanel: NSWindow {
 
     init(owner: Floater) {
         self.owner = owner
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 480, height: 598),
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 480, height: 602),
                    styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         title = "AI 字幕 · 设置"
         level = .floating
@@ -101,7 +101,7 @@ final class SettingsPanel: NSWindow {
     // ---------- UI 构建 (macOS 开源风格: 边缘20/控件高24/行高32/字体三级) ----------
     func buildUI() {
         let W: CGFloat = 480
-        let H: CGFloat = 598
+        let H: CGFloat = 602
         let E: CGFloat = 20          // 四边统一边缘
         let C: CGFloat = 24          // 控件统一高度
         let box = NSView(frame: NSRect(x: 0, y: 0, width: W, height: H))
@@ -138,7 +138,7 @@ final class SettingsPanel: NSWindow {
         func formLabel(_ s: String, _ x: CGFloat) -> NSTextField {
             let lb = NSTextField(labelWithString: s)
             lb.font = fLb
-            lb.frame = NSRect(x: x, y: y - 17, width: 96, height: 17)
+            lb.frame = NSRect(x: x, y: y - 20, width: 96, height: 17)
             doc.addSubview(lb)
             return lb
         }
@@ -184,9 +184,14 @@ final class SettingsPanel: NSWindow {
         // 渠道行
         let chLb = NSTextField(labelWithString: "渠道:")
         chLb.font = .systemFont(ofSize: 13)
-        chLb.frame = NSRect(x: E, y: y - 17, width: 40, height: 17)
+        chLb.frame = NSRect(x: E, y: y - 20, width: 40, height: 17)
         doc.addSubview(chLb)
         channelPopup = NSPopUpButton(frame: NSRect(x: E + 44, y: y - 24, width: 220, height: C))
+        channelPopup.font = .systemFont(ofSize: 13)
+        // 下拉框内容与框边缘留内边距
+        let chCell = channelPopup.cell as? NSPopUpButtonCell
+        chCell?.controlSize = .regular
+        chCell?.font = .systemFont(ofSize: 13)
         channelPopup.addItems(withTitles: ["hf-mirror (国内镜像)", "hf-official (官方,需代理)", "modelscope (阿里,免代理)", "custom (自定义)"])
         channelPopup.target = self
         channelPopup.action = #selector(onChannelChanged)
@@ -196,7 +201,7 @@ final class SettingsPanel: NSWindow {
         // 代理行
         let prLb = NSTextField(labelWithString: "代理:")
         prLb.font = .systemFont(ofSize: 13)
-        prLb.frame = NSRect(x: E, y: y - 17, width: 40, height: 17)
+        prLb.frame = NSRect(x: E, y: y - 20, width: 40, height: 17)
         doc.addSubview(prLb)
         proxyField = NSTextField(frame: NSRect(x: E + 44, y: y - 24, width: 220, height: C))
         proxyField.placeholderString = "留空=直连, 如 http://127.0.0.1:1088"
@@ -243,7 +248,7 @@ final class SettingsPanel: NSWindow {
         permBtn.frame = NSRect(x: W - E - 100, y: y - 20, width: 100, height: 20)
         permBtn.contentTintColor = .systemOrange
         doc.addSubview(permBtn)
-        y -= 28
+        y -= 30
 
         // GitHub 链接 + 版本号 (同一行: 左=[🐱易+地址], 右=v版本号)
         let ghBtn = NSButton(title: "易", target: self, action: #selector(openGitHub))
@@ -272,7 +277,7 @@ final class SettingsPanel: NSWindow {
         ver.alignment = .center
         ver.frame = NSRect(x: W - E - 80, y: y - 17, width: 80, height: 14)
         doc.addSubview(ver)
-        y -= 28
+        y -= 30
 
         // DeepSeek Harness 作品 (居中, 独立一行, 底部边缘 20)
         let credit = NSTextField(labelWithString: "DeepSeek Harness v4 Flash 作品")
