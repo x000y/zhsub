@@ -231,6 +231,20 @@ final class SettingsPanel: NSWindow {
         doc.addSubview(updBtn)
         y -= 30
 
+        // 系统音频权限提示 + 一键授权 (不出字幕时排查用)
+        let permHint = NSTextField(labelWithString: "系统音频权限: 若不出字幕请检查")
+        permHint.font = .systemFont(ofSize: 10.5)
+        permHint.textColor = .secondaryLabelColor
+        permHint.frame = NSRect(x: E, y: y - 16, width: 220, height: 16)
+        doc.addSubview(permHint)
+        let permBtn = NSButton(title: "前往授权 →", target: self, action: #selector(openAudioPermission))
+        permBtn.bezelStyle = .inline
+        permBtn.font = .systemFont(ofSize: 10.5)
+        permBtn.frame = NSRect(x: W - E - 100, y: y - 20, width: 100, height: 20)
+        permBtn.contentTintColor = .systemOrange
+        doc.addSubview(permBtn)
+        y -= 28
+
         // GitHub 链接 + 版本号 (同一行: 左=[🐱易+地址], 右=v版本号)
         let ghBtn = NSButton(title: "易", target: self, action: #selector(openGitHub))
         ghBtn.bezelStyle = .inline
@@ -278,6 +292,23 @@ final class SettingsPanel: NSWindow {
         if let url = URL(string: "https://github.com/x000y/zhsub") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    // 打开系统设置 → 隐私与安全性 → 屏幕与系统音频录制
+    // (macOS 15+: 系统音频捕获权限在此授予, 未授权则 audiotee 捕获不到网页声音)
+    @objc func openAudioPermission() {
+        let urls = [
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture",
+        ]
+        for u in urls {
+            if let url = URL(string: u) {
+                NSWorkspace.shared.open(url)
+                return
+            }
+        }
+        statusLabel.stringValue = "请手动打开: 系统设置 → 隐私与安全性 → 屏幕与系统音频录制"
+        statusLabel.textColor = .systemOrange
     }
 
     @objc func checkUpdate() {

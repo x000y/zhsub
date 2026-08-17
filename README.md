@@ -51,12 +51,37 @@ python3 -m venv ~/zh-sub-engine/.venv
 
 > 需要 audiotee: 参考 [livecaption](https://github.com/laurent22/livecaption) 编译 `bin/audiotee` 放入 `~/livecaption/bin/`。
 
+## 🔐 系统音频权限（必须！不出字幕先看这里）
+
+zhsub 通过 **audiotee** 捕获系统音频（麦克风权限不够，需要「**屏幕与系统音频录制**」权限）。
+
+**首次使用请授权**：
+1. 打开 **系统设置 → 隐私与安全性 → 屏幕与系统音频录制**
+2. 勾选 **「悬浮双语字幕」**（没有就点 **+** 添加 `/Applications/zhsub.app`）
+3. 完全退出 App 再重新打开
+
+**App 内也能跳转**：设置面板（⚙）→ 「系统音频权限: 若不出字幕请检查」→ 点 **「前往授权 →」** 直接打开设置页。
+
+> 授权后若仍不出字幕，检查是否有其他占用系统音频的程序（如旧版 livecaption 进程）：
+> `ps aux | grep livecaption` 有残留就 `kill` 掉。
+
 ## 🎮 使用
 
 - **拖动**字幕窗口 = 移动
 - **滚轮** = 缩放字号
 - **Option + 滚轮** = 调整字幕缓冲延迟
-- **左上角齿轮** = 设置面板（模型管理 / 下载渠道 / 代理 / 检查更新）
+- **左上角齿轮** = 设置面板（模型管理 / 下载渠道 / 代理 / 检查更新 / 退出）
+
+## 🚀 发版（版本号自动同步）
+
+```bash
+bash release.sh 0.1.3        # 一键发版: 改版本→提交→tag→push→打包→签名→dmg→GitHub Release
+bash release.sh 0.1.3 --lite # 只发瘦身版
+bash release.sh --dry-run 0.1.3  # 只打包不发布(预览)
+```
+
+- 版本号会**自动同步**更新到：`floater.swift`（App 内显示）、`pack.sh`（默认版本）、git tag、Release 标题、dmg 文件名
+- App 内「检查更新」会对比 GitHub 最新 tag，发现新版本提示下载
 
 ## 📁 文件说明
 
@@ -68,6 +93,7 @@ python3 -m venv ~/zh-sub-engine/.venv
 | `zhsub-mt.py` | 独立翻译辅助 (Hy-MT2) |
 | `subtitles.sh` | 一键启动脚本 |
 | `pack.sh` | 打包脚本 (`--full` 内置模型, 版本号自动读 git tag) |
+| `release.sh` | 一键发版脚本 (版本号同步: 提交/tag/打包/签名/dmg/GitHub Release) |
 | `assets/` | 图标 (zhsub.icns) / GitHub mark |
 
 ## ⚙️ 配置
